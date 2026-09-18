@@ -439,13 +439,27 @@
       <select id="s-key"></select>
     </div>
     <div class="field">
-      <label>Chord sheet file (.txt / .cho / .pro / .crd)</label>
-      <input type="file" id="s-file" accept=".txt,.cho,.pro,.crd,text/plain">
-      <div class="tiny-note">Only plain-text chord sheets can be auto-transposed. For scans or PDFs, paste the chords/lyrics as text below instead.</div>
+      <label>Sheet type</label>
+      <div style="display:flex;gap:16px;font-size:13px;font-weight:600;padding-top:4px">
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="s-mode" value="text" id="s-mode-text" checked> Plain text (transposable)</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="s-mode" value="pdf" id="s-mode-pdf"> PDF / scanned file</label>
+      </div>
     </div>
-    <div class="field"><label>Or paste chords &amp; lyrics</label>
-      <textarea id="s-body" placeholder="G          D/F#      Em
+    <div id="s-text-fields">
+      <div class="field">
+        <label>Chord sheet file (.txt / .cho / .pro / .crd)</label>
+        <input type="file" id="s-file" accept=".txt,.cho,.pro,.crd,text/plain">
+        <div class="tiny-note">Only plain-text chord sheets can be auto-transposed.</div>
+      </div>
+      <div class="field"><label>Or paste chords &amp; lyrics</label>
+        <textarea id="s-body" placeholder="G          D/F#      Em
 Amazing grace, how sweet the sound"></textarea>
+      </div>
+    </div>
+    <div class="field" id="s-pdf-field" style="display:none">
+      <label>PDF or image file</label>
+      <input type="file" id="s-pdf-file" accept=".pdf,application/pdf,image/*">
+      <div class="tiny-note">Uploaded to Cloudinary. PDFs/scans can't be auto-transposed &mdash; the chord library will show a direct "Open" link instead of the transpose viewer for this sheet. Editing an existing PDF sheet keeps its current file unless you choose a new one.</div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btn-delete-sheet" style="display:none;margin-right:auto">Delete</button>
@@ -846,13 +860,20 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     list.forEach(function(s){
       var row = document.createElement('div');
       row.className = 'sheet-row';
-      row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + '</span></div>';
+      row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + (s.fileUrl ? ' &middot; PDF/scan' : '') + '</span></div>';
       var actions = document.createElement('div');
       actions.style.display = 'flex'; actions.style.gap = '8px';
-      var openBtn = document.createElement('button');
-      openBtn.className = 'btn small'; openBtn.textContent = 'View & transpose';
-      openBtn.onclick = function(){ openSheetViewer(s); };
-      actions.appendChild(openBtn);
+      if (s.fileUrl){
+        var openLink = document.createElement('a');
+        openLink.href = s.fileUrl; openLink.target = '_blank'; openLink.rel = 'noopener noreferrer';
+        openLink.className = 'btn small'; openLink.textContent = 'Open';
+        actions.appendChild(openLink);
+      } else {
+        var openBtn = document.createElement('button');
+        openBtn.className = 'btn small'; openBtn.textContent = 'View & transpose';
+        openBtn.onclick = function(){ openSheetViewer(s); };
+        actions.appendChild(openBtn);
+      }
       if (canEdit){
         var editBtn = document.createElement('button');
         editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
@@ -916,6 +937,12 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
   // upload / edit modal
   var sheetOverlay = document.getElementById('sheet-overlay');
+  function setSheetModeFields(isPdf){
+    document.getElementById('s-mode-pdf').checked = isPdf;
+    document.getElementById('s-mode-text').checked = !isPdf;
+    document.getElementById('s-text-fields').style.display = isPdf ? 'none' : '';
+    document.getElementById('s-pdf-field').style.display = isPdf ? '' : 'none';
+  }
   function openSheetModal(sheet){
     editingSheetId = sheet ? sheet.id : null;
     document.getElementById('sheet-modal-title').textContent = sheet ? 'Edit chord sheet' : 'Upload chord sheet';
@@ -925,11 +952,16 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     document.getElementById('s-key').innerHTML = KEYS.map(function(k){ return '<option>' + k + '</option>'; }).join('');
     if (sheet) document.getElementById('s-key').value = sheet.originalKey;
     document.getElementById('s-file').value = '';
-    document.getElementById('s-body').value = sheet ? sheet.body : '';
+    document.getElementById('s-pdf-file').value = '';
+    document.getElementById('s-body').value = (sheet && sheet.body) || '';
+    setSheetModeFields(!!(sheet && sheet.fileUrl));
     sheetOverlay.classList.add('active');
   }
   document.getElementById('btn-add-sheet').addEventListener('click', function(){ openSheetModal(null); });
   document.getElementById('btn-cancel-sheet').addEventListener('click', function(){ sheetOverlay.classList.remove('active'); });
+  document.querySelectorAll('input[name="s-mode"]').forEach(function(r){
+    r.addEventListener('change', function(){ setSheetModeFields(document.getElementById('s-mode-pdf').checked); });
+  });
   document.getElementById('s-file').addEventListener('change', function(e){
     var file = e.target.files[0]; if (!file) return;
     var reader = new FileReader();
@@ -938,16 +970,33 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   });
   document.getElementById('btn-save-sheet').addEventListener('click', async function(){
     var title = document.getElementById('s-title').value.trim();
-    var body = document.getElementById('s-body').value;
-    if (!title || !body.trim()){ toast('Add a title and chord sheet text.'); return; }
-    var data = { title: title, category: document.getElementById('s-category').value, originalKey: document.getElementById('s-key').value, body: body, uploadedBy: myId || null, createdAt: Date.now() };
+    if (!title){ toast('Add a title.'); return; }
+    if (!db) { toast('Not connected.'); return; }
+    var isPdf = document.getElementById('s-mode-pdf').checked;
+    var existing = editingSheetId ? sheets.find(function(s){ return s.id === editingSheetId; }) : null;
+    var data = { title: title, category: document.getElementById('s-category').value, originalKey: document.getElementById('s-key').value, uploadedBy: myId || null, createdAt: (existing && existing.createdAt) || Date.now() };
     try {
-      if (!db) { toast('Not connected.'); return; }
+      if (isPdf){
+        var file = document.getElementById('s-pdf-file').files[0];
+        if (!file){
+          if (existing && existing.fileUrl){ data.fileUrl = existing.fileUrl; data.contentType = existing.contentType; }
+          else { toast('Choose a PDF or image file.'); return; }
+        } else {
+          toast('Uploading...');
+          var up = await uploadToCloudinary(file);
+          data.fileUrl = up.url; data.contentType = up.contentType;
+        }
+        data.body = '';
+      } else {
+        var body = document.getElementById('s-body').value;
+        if (!body.trim()){ toast('Add chord sheet text.'); return; }
+        data.body = body; data.fileUrl = null; data.contentType = null;
+      }
       if (editingSheetId) await db.collection('chordsheets').doc(editingSheetId).set(data);
       else await db.collection('chordsheets').add(data);
       sheetOverlay.classList.remove('active');
       toast('Chord sheet saved.');
-    } catch(err){ toast('Could not save.'); }
+    } catch(err){ toast('Could not save (' + (err.code||err.message||'error') + ').'); }
   });
   document.getElementById('btn-delete-sheet').addEventListener('click', async function(){
     if (!editingSheetId) return;
