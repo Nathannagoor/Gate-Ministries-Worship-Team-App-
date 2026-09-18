@@ -92,7 +92,7 @@ is allowed by default).
 | Collection      | Written by                          | Notes |
 |-----------------|--------------------------------------|-------|
 | `songs`         | team leads only                      | practice arrangements |
-| `chordsheets`   | any signed-in member (create), team leads (edit/delete) | plain text (transposed client-side) or an uploaded PDF/scan via Cloudinary (view-only, not transposable) |
+| `chordsheets`   | any signed-in member (create), team leads (edit/delete) | any file uploaded via Cloudinary, opened with a plain "Open" link |
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
 | `availability`  | each user, own doc only (`{weekId}_{uid}`) | Sunday-by-Sunday status; clicking the active status again clears it |
 | `feedback`      | each user, own doc only              | set feedback per Sunday |
