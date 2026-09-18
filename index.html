@@ -1108,6 +1108,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         var ref = await db.collection('services').add({ date: date, time: time, label: label, assign: {}, avail: {}, set: [], notes: '', createdAt: Date.now() });
         activeServiceId = ref.id;
       }
+      renderServiceViews();
       document.getElementById('service-overlay').classList.remove('active');
       toast('Saved.');
     } catch(err){ toast('Could not save.'); }
