@@ -3,7 +3,8 @@
 A static site (plain HTML/CSS/JS) for the worship team: song arrangements,
 a transposing chord library, availability sign-ups, resources, and
 feedback/suggestions. Backed by Firebase (Firestore + Auth) for data/sign-in
-and Cloudinary for file uploads (PDFs, video, audio), so everything syncs
+and Cloudinary for file uploads (PDFs, video, audio, images, or any other
+file type), so everything syncs
 live between everyone who opens the site.
 
 ## 1. Create a Firebase project
