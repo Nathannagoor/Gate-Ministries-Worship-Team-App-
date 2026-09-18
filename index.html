@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GATE Sandton Worship Team Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy-950: #0a0a0a;
+    --navy-900: #141414;
+    --navy-800: #232323;
+    --navy-700: #333333;
+    --paper: #f3f1ea;
+    --card: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #5c5f66;
+    --line: #e2e0da;
+    --gold: #33417f;
+    --gold-ink: #1e2a5e;
+    --praise: #cf5a2c;
+    --praise-soft: #fbe7dc;
+    --worship: #1f7a72;
+    --worship-soft: #ddf0ec;
+    --ok: #2f8f5b;
+    --ok-soft: #e2f4ea;
+    --maybe: #c98a1c;
+    --maybe-soft: #fbeed4;
+    --no: #b1493f;
+    --no-soft: #f8e4e1;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(15,30,66,.06), 0 6px 20px rgba(15,30,66,.06);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0d1326;
+    --card: #151c34;
+    --ink: #eef0f7;
+    --ink-soft: #a6adc4;
+    --line: #262f4c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1326;
+      --card: #151c34;
+      --ink: #eef0f7;
+      --ink-soft: #a6adc4;
+      --line: #262f4c;
+    }
+  }
+  .display { font-family: 'Bebas Neue', 'Inter', sans-serif; letter-spacing: 0.02em; }
+  a { color: inherit; }
+  button { font-family: inherit; cursor: pointer; }
+
+  header.topbar {
+    background: linear-gradient(180deg, var(--navy-900), var(--navy-950));
+    color: #fff;
+    padding: 18px 28px 0;
+  }
+  .brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .brand-mark {
+    width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #fff;
+  }
+  .brand-mark svg { width: 44px; height: 44px; }
+  .church-name { font-size: 11px; font-weight: 700; letter-spacing: .16em; color: #8f96b8; margin-bottom: 2px; }
+  h1.brand-title { font-size: 28px; margin: 0; line-height: 1; }
+  .brand-sub { font-size: 12px; color: #9aa0b8; margin-top: 3px; }
+
+  nav.tabs { display: flex; gap: 4px; padding-top: 6px; flex-wrap: wrap; }
+  nav.tabs button {
+    background: none; border: none; color: #b9c2de; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-bottom: 3px solid transparent;
+    border-radius: 6px 6px 0 0;
+  }
+  nav.tabs button:hover { color: #fff; background: rgba(255,255,255,.05); }
+  nav.tabs button.active { color: #fff; border-bottom-color: var(--gold); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 80px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .panel-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .panel-head h2 { font-size: 26px; margin: 0 0 2px; }
+  .panel-head p { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--navy-900); color: #fff; border: none; padding: 9px 16px;
+    border-radius: 8px; font-size: 13.5px; font-weight: 600;
+  }
+  .btn:hover { background: var(--navy-800); }
+  .btn.gold { background: var(--gold); color: #402c05; }
+  .btn.gold:hover { background: #cf9327; }
+  .btn.ghost { background: transparent; color: var(--navy-900); border: 1.5px solid var(--line); }
+  :root[data-theme="dark"] .btn.ghost, .btn.ghost { color: var(--ink); }
+  .btn.small { padding: 6px 11px; font-size: 12.5px; }
+  .btn.danger { background: var(--no); color: #fff; }
+
+  .filterbar { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .chip {
+    background: var(--card); border: 1.5px solid var(--line); padding: 6px 14px;
+    border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  }
+  .chip.active { border-color: var(--navy-900); color: var(--navy-900); background: #eef1fb; }
+  :root[data-theme="dark"] .chip.active { background: rgba(224,163,57,.15); border-color: var(--gold); color: var(--gold); }
+
+  /* Song cards */
+  .song-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+  .song-card {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    overflow: hidden; border: 1px solid var(--line); display: flex; flex-direction: column;
+  }
+  .song-card-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px; }
+  .song-num {
+    width: 26px; height: 26px; border-radius: 7px; color: #fff; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;
+  }
+  .song-card-head h3 { font-size: 16.5px; margin: 0; line-height: 1.2; }
+  .song-cat-tag { font-size: 10px; text-transform: uppercase; font-weight: 700; letter-spacing: .05em; margin-top: 2px; }
+  .song-meta-row { display: flex; gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .song-meta-row div { flex: 1; text-align: center; padding: 7px 4px; border-right: 1px solid var(--line); }
+  .song-meta-row div:last-child { border-right: none; }
+  .song-meta-row .lbl { font-size: 9px; color: var(--ink-soft); font-weight: 700; letter-spacing: .04em; }
+  .song-meta-row .val { font-size: 13.5px; font-weight: 700; margin-top: 1px; }
+  .leader-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 700; }
+  .leader-row.all { background: #eef0f5; }
+  :root[data-theme="dark"] .leader-row.all { background: rgba(255,255,255,.04); }
+  .bv-row { padding: 4px 14px 10px; font-size: 12px; color: var(--ink-soft); display: flex; gap: 6px; }
+  .song-instruments { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 7px; }
+  .inst-line { display: flex; gap: 8px; font-size: 12.5px; }
+  .inst-line .inst-label { font-weight: 700; color: var(--ink); min-width: 78px; }
+  .inst-line .inst-val { color: var(--ink-soft); }
+  .song-card-actions { margin-top: auto; padding: 8px 14px 14px; display: flex; gap: 8px; }
+
+  /* Chord library */
+  .folder-tabs { display: flex; gap: 10px; margin-bottom: 18px; }
+  .folder-tab { padding: 10px 18px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--card); font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .folder-tab .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .folder-tab.active { border-color: var(--navy-900); }
+  :root[data-theme="dark"] .folder-tab.active { border-color: var(--gold); }
+  .sheet-list { display: flex; flex-direction: column; gap: 10px; }
+  .sheet-row {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  }
+  .sheet-row .info { display: flex; flex-direction: column; }
+  .sheet-row .info b { font-size: 14.5px; }
+  .sheet-row .info span { font-size: 12px; color: var(--ink-soft); }
+  .keyfolder-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .keyfolder-card .kf-icon { font-size: 22px; }
+  .keyfolder-card b { font-size: 16px; display: block; }
+  .keyfolder-card span { font-size: 12px; color: var(--ink-soft); }
+  .empty-note { color: var(--ink-soft); font-size: 13.5px; padding: 30px 10px; text-align: center; border: 1.5px dashed var(--line); border-radius: 10px; }
+
+  /* Chord viewer */
+  .chord-viewer-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
+  .chord-viewer-bar select { padding: 6px 10px; border-radius: 7px; border: 1.5px solid var(--line); font-weight: 700; background: var(--card); color: var(--ink); }
+  pre.chord-body {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px;
+    font-family: 'Courier New', monospace; font-size: 14.5px; line-height: 1.7; overflow-x: auto; white-space: pre-wrap;
+  }
+  .chord-tok { color: var(--praise); font-weight: 700; }
+
+  /* Availability */
+  .avail-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .month-label { font-weight: 800; font-size: 17px; min-width: 170px; text-align: center; }
+  .avail-columns { display: grid; grid-template-columns: 1.1fr 1.4fr; gap: 22px; align-items: start; }
+  @media (max-width: 820px) { .avail-columns { grid-template-columns: 1fr; } }
+  .card-block { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+  .card-block h3 { margin: 0 0 4px; font-size: 16px; }
+  .card-block p.hint { margin: 0 0 14px; font-size: 12.5px; color: var(--ink-soft); }
+  .week-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); gap: 10px; flex-wrap: wrap; }
+  .week-row:last-child { border-bottom: none; }
+  .week-date { font-weight: 700; font-size: 13.5px; }
+  .status-btns { display: flex; gap: 6px; }
+  .status-btn { border: 1.5px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 7px; }
+  .status-btn[data-s="available"].active { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+  .status-btn[data-s="maybe"].active { background: var(--maybe-soft); border-color: var(--maybe); color: var(--maybe-ink, var(--maybe)); }
+  .status-btn[data-s="unavailable"].active { background: var(--no-soft); border-color: var(--no); color: var(--no); }
+
+  table.team-grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.team-grid th, table.team-grid td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--line); }
+  table.team-grid th { color: var(--ink-soft); font-weight: 700; font-size: 11px; }
+  table.team-grid td:first-child, table.team-grid th:first-child { text-align: left; font-weight: 700; color: var(--ink); }
+  .pill { display: inline-block; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; line-height: 22px; font-weight: 800; }
+  .pill.available { background: var(--ok-soft); color: var(--ok); }
+  .pill.maybe { background: var(--maybe-soft); color: var(--maybe); }
+  .pill.unavailable { background: var(--no-soft); color: var(--no); }
+  .pill.none { background: transparent; color: var(--line); }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(10,15,30,.55); display: none; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 50; }
+  .overlay.active { display: flex; }
+  .modal { background: var(--card); border-radius: 14px; width: 100%; max-width: 560px; padding: 24px; }
+  .modal h3 { margin: 0 0 16px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 11px; border-radius: 8px; border: 1.5px solid var(--line);
+    font-family: inherit; font-size: 13.5px; background: var(--card); color: var(--ink);
+  }
+  .field textarea { min-height: 110px; font-family: 'Courier New', monospace; resize: vertical; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .tiny-note { font-size: 11.5px; color: var(--ink-soft); margin-top: -4px; margin-bottom: 12px; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--navy-900); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 60; }
+  .toast.show { opacity: 1; }
+
+  .readonly-note { font-size: 12px; color: var(--gold-ink); background: #e9ebf7; border: 1px solid #c7ccec; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px; }
+
+  /* Resources */
+  .res-row { display: flex; align-items: center; gap: 12px; }
+  .res-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--paper); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .res-cat-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); background: var(--paper); padding: 2px 8px; border-radius: 5px; margin-top: 3px; }
+
+  /* Feedback & suggestions */
+  .fb-item, .sg-item { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font-size: 13px; }
+  .fb-item .fb-meta, .sg-item .sg-meta { font-size: 11px; color: var(--ink-soft); font-weight: 700; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; }
+  .status-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; padding: 2px 8px; border-radius: 10px; }
+  .status-tag.New { background: var(--maybe-soft); color: var(--maybe); }
+  .status-tag.Approved { background: var(--ok-soft); color: var(--ok); }
+  .status-tag.Passed { background: var(--no-soft); color: var(--no); }
+  .sg-status-btns { display: flex; gap: 5px; margin-top: 7px; }
+  .sg-status-btns button { font-size: 10.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-weight: 700; }
+  :root[data-theme="dark"] .readonly-note { background: rgba(224,163,57,.12); border-color: rgba(224,163,57,.3); color: var(--gold); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand-row">
+    <div class="brand-mark">
+      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="22" r="15" stroke="currentColor" stroke-width="3.2" stroke-dasharray="70 24" stroke-dashoffset="-8" stroke-linecap="round"/>
+        <text x="20" y="28" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="17" fill="currentColor">G</text>
+        <line x1="38" y1="14" x2="43" y2="14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="39" y1="19" x2="44" y2="19" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="39" y1="25" x2="44" y2="25" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="38" y1="30" x2="43" y2="30" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="church-name">GATE MINISTRIES SANDTON</div>
+      <h1 class="brand-title display">WORSHIP TEAM HUB</h1>
+      <div class="brand-sub">Arrangements &middot; Chord library &middot; Availability</div>
+    </div>
+    <div id="account-box" style="margin-left:auto; display:flex; align-items:center; gap:10px;"></div>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" data-view="arrangements">Arrangements</button>
+    <button class="tab-btn" data-view="chords">Chord Library</button>
+    <button class="tab-btn" data-view="availability">Availability</button>
+    <button class="tab-btn" data-view="resources">Resources</button>
+    <button class="tab-btn" data-view="feedback">Feedback &amp; Suggestions</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ARRANGEMENTS -->
+  <section id="view-arrangements" class="view active">
+    <div class="panel-head">
+      <div>
+        <h2 class="display">Practice Arrangements</h2>
+        <p>Keys, tempos and instrument notes for this set.</p>
+      </div>
+      <button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button>
+    </div>
+    <div class="filterbar" id="song-filters">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="Praise">Praise</button>
+      <button class="chip" data-filter="Worship">Worship</button>
+    </div>
+    <div class="song-grid" id="song-grid"></div>
+  </section>
+
+  <!-- CHORD LIBRARY -->
+  <section id="view-chords" class="view">
+    <div class="panel-head">
+      <div>
+        <h2 class="display">Chord Library</h2>
+        <p>Upload a chord sheet once, view it transposed to any key.</p>
+      </div>
+      <button class="btn gold" id="btn-add-sheet">+ Upload chord sheet</button>
+    </div>
+    <div class="folder-tabs" id="chord-folders">
+      <button class="folder-tab active" data-cat="Praise"><span class="dot" style="background:var(--praise)"></span>Praise</button>
+      <button class="folder-tab" data-cat="Worship"><span class="dot" style="background:var(--worship)"></span>Worship</button>
+    </div>
+    <div class="song-grid" id="key-folder-grid"></div>
+    <div id="sheet-list-wrap" style="display:none">
+      <button class="btn ghost small" id="btn-back-to-keys" style="margin-bottom:14px;">&larr; Back to keys</button>
+      <div class="display" id="sheet-list-title" style="font-size:20px;margin-bottom:10px"></div>
+      <div class="sheet-list" id="sheet-list"></div>
+    </div>
+
+    <div id="chord-viewer" style="display:none; margin-top:22px;">
+      <button class="btn ghost small" id="btn-back-to-sheets" style="margin-bottom:14px;">&larr; Back to library</button>
+      <div class="chord-viewer-bar">
+        <div>
+          <b id="viewer-title" style="font-size:16px;"></b>
+          <div style="font-size:12px;color:var(--ink-soft)" id="viewer-sub"></div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          <label for="viewer-key" style="font-size:12.5px;font-weight:700;color:var(--ink-soft)">Show in key</label>
+          <select id="viewer-key"></select>
+        </div>
+      </div>
+      <pre class="chord-body" id="viewer-body"></pre>
+    </div>
+  </section>
+
+  <!-- AVAILABILITY -->
+  <section id="view-availability" class="view">
+    <div class="panel-head">
+      <div>
+        <h2 class="display">Availability</h2>
+        <p>Mark the Sundays you can serve. The team lead sees everyone's status.</p>
+      </div>
+    </div>
+    <div class="avail-toolbar">
+      <button class="btn ghost small" id="month-prev">&larr;</button>
+      <div class="month-label display" id="month-label" style="font-size:20px;"></div>
+      <button class="btn ghost small" id="month-next">&rarr;</button>
+    </div>
+    <div class="avail-columns">
+      <div class="card-block">
+        <h3>My availability</h3>
+        <p class="hint" id="my-name-hint">Loading&hellip;</p>
+        <div id="my-weeks"></div>
+      </div>
+      <div class="card-block">
+        <h3>Team overview</h3>
+        <p class="hint">Everyone who has set a status this month.</p>
+        <div style="overflow-x:auto"><table class="team-grid" id="team-grid"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESOURCES -->
+  <section id="view-resources" class="view">
+    <div class="panel-head">
+      <div>
+        <h2 class="display">Resources</h2>
+        <p>Warm-up routines, tutorials, sheet music and anything else the team should have handy.</p>
+      </div>
+      <button class="btn gold" id="btn-add-resource">+ Add resource</button>
+    </div>
+    <div class="filterbar" id="resource-filters">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="Warm-up">Warm-ups</button>
+      <button class="chip" data-filter="Tutorial">Tutorials</button>
+      <button class="chip" data-filter="Sheet Music">Sheet Music</button>
+      <button class="chip" data-filter="Other">Other</button>
+    </div>
+    <div class="sheet-list" id="resource-list"></div>
+  </section>
+
+  <!-- FEEDBACK & SUGGESTIONS -->
+  <section id="view-feedback" class="view">
+    <div class="panel-head">
+      <div>
+        <h2 class="display">Feedback &amp; Song Suggestions</h2>
+        <p>Reflect on a recent set, or put a new song forward.</p>
+      </div>
+    </div>
+    <div class="avail-columns">
+      <div class="card-block">
+        <h3>Set feedback</h3>
+        <p class="hint">Pick the Sunday and share how it went.</p>
+        <div class="field"><label>Sunday</label><select id="fb-week"></select></div>
+        <div class="field"><label>Your feedback</label><textarea id="fb-text" style="min-height:70px;font-family:inherit" placeholder="What worked, what to tweak next time..."></textarea></div>
+        <button class="btn gold small" id="btn-add-feedback">Post feedback</button>
+        <div id="feedback-list" style="margin-top:16px;display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div class="card-block">
+        <h3>Suggest a song</h3>
+        <p class="hint">Send a song for the team lead to consider.</p>
+        <div class="field"><label>Song title</label><input id="sg-title" placeholder="Song title"></div>
+        <div class="field"><label>Artist / link (optional)</label><input id="sg-link" placeholder="Artist name or a YouTube link"></div>
+        <div class="field"><label>Why this song? (optional)</label><textarea id="sg-reason" style="min-height:60px;font-family:inherit" placeholder="Fits the sermon series, congregation has been asking for it..."></textarea></div>
+        <button class="btn gold small" id="btn-add-suggestion">Send suggestion</button>
+        <div id="suggestion-list" style="margin-top:16px;display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Add / Edit song modal -->
+<div class="overlay" id="song-overlay">
+  <div class="modal">
+    <h3 id="song-modal-title">Add song</h3>
+    <div class="field"><label>Title</label><input id="f-title" placeholder="Song title"></div>
+    <div class="field-row">
+      <div class="field"><label>Category</label>
+        <select id="f-category"><option>Praise</option><option>Worship</option></select>
+      </div>
+      <div class="field"><label>Key</label><input id="f-key" placeholder="G"></div>
+      <div class="field"><label>Tempo</label><input id="f-tempo" placeholder="72 BPM"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Time</label><input id="f-time" placeholder="4/4"></div>
+      <div class="field"><label>Leader</label><input id="f-leader" placeholder="All / a name"></div>
+      <div class="field"><label>BVs</label><input id="f-bvs" placeholder="Chorus onwards"></div>
+    </div>
+    <div class="field"><label>Keys / Piano</label><input id="f-keys" placeholder="Piano / EP"></div>
+    <div class="field"><label>Pads</label><input id="f-pads" placeholder="Pads &amp; strings"></div>
+    <div class="field"><label>Acoustic guitar</label><input id="f-acoustic1" placeholder="Standard"></div>
+    <div class="field"><label>Electric guitar 1</label><input id="f-electric1" placeholder="Clean, light reverb"></div>
+    <div class="field"><label>Electric guitar 2</label><input id="f-electric2" placeholder="Clean, light reverb"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btn-delete-song" style="display:none;margin-right:auto">Delete</button>
+      <button class="btn ghost" id="btn-cancel-song">Cancel</button>
+      <button class="btn gold" id="btn-save-song">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload chord sheet modal -->
+<div class="overlay" id="sheet-overlay">
+  <div class="modal">
+    <h3>Upload chord sheet</h3>
+    <div class="field-row">
+      <div class="field" style="grid-column: span 2"><label>Title</label><input id="s-title" placeholder="Song title"></div>
+      <div class="field"><label>Category</label>
+        <select id="s-category"><option>Praise</option><option>Worship</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Original key</label>
+      <select id="s-key"></select>
+    </div>
+    <div class="field">
+      <label>Chord sheet file (.txt / .cho / .pro / .crd)</label>
+      <input type="file" id="s-file" accept=".txt,.cho,.pro,.crd,text/plain">
+      <div class="tiny-note">Only plain-text chord sheets can be auto-transposed. For scans or PDFs, paste the chords/lyrics as text below instead.</div>
+    </div>
+    <div class="field"><label>Or paste chords &amp; lyrics</label>
+      <textarea id="s-body" placeholder="G          D/F#      Em
+Amazing grace, how sweet the sound"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-sheet">Cancel</button>
+      <button class="btn gold" id="btn-save-sheet">Save sheet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add resource modal -->
+<div class="overlay" id="resource-overlay">
+  <div class="modal">
+    <h3>Add resource</h3>
+    <div class="field-row">
+      <div class="field" style="grid-column: span 2"><label>Title</label><input id="r-title" placeholder="e.g. 5-minute vocal warm-up"></div>
+      <div class="field"><label>Category</label>
+        <select id="r-category"><option>Warm-up</option><option>Tutorial</option><option>Sheet Music</option><option>Other</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Description (optional)</label><input id="r-desc" placeholder="Short note about this resource"></div>
+    <div class="field">
+      <label>Type</label>
+      <div style="display:flex;gap:16px;font-size:13px;font-weight:600;padding-top:4px">
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="r-type" value="file" id="r-type-file" checked> Upload a file</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="r-type" value="link" id="r-type-link"> Link (e.g. YouTube)</label>
+      </div>
+    </div>
+    <div class="field" id="r-file-field"><label>File (PDF, video, audio, image, text)</label><input type="file" id="r-file"></div>
+    <div class="field" id="r-link-field" style="display:none"><label>Link URL</label><input id="r-link" placeholder="https://..."></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-resource">Cancel</button>
+      <button class="btn gold" id="btn-save-resource">Save resource</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sign-in gate -->
+<div class="overlay active" id="auth-overlay" style="z-index:100">
+  <div class="modal" style="max-width:380px;text-align:center;padding:36px 28px;">
+    <h3 style="margin-bottom:8px">Sign in to continue</h3>
+    <p style="color:var(--ink-soft);font-size:13.5px;margin:0 0 20px">Sign in with Google to view the GATE Sandton Worship Team hub.</p>
+    <button class="btn gold" id="btn-google-signin" style="width:100%;justify-content:center">Sign in with Google</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
+  getDoc, getDocs, onSnapshot, query, where, limit, documentId
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import {
+  getStorage, ref, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
+import { firebaseConfig } from './firebase-config.js';
+
+(function(){
+
+  // ---------- firebase backend ----------
+  var firebaseApp = initializeApp(firebaseConfig);
+  var auth = getAuth(firebaseApp);
+  var googleProvider = new GoogleAuthProvider();
+  var firestore = getFirestore(firebaseApp);
+  var storage = getStorage(firebaseApp);
+
+  function wrapSnapshot(snap){
+    return {
+      docs: snap.docs.map(function(d){ return { id: d.id, data: function(){ return d.data(); } }; }),
+      empty: snap.empty
+    };
+  }
+  function makeQueryShim(q){
+    return {
+      get: function(){ return getDocs(q).then(wrapSnapshot); },
+      onSnapshot: function(cb, errCb){ return onSnapshot(q, function(snap){ cb(wrapSnapshot(snap)); }, errCb); }
+    };
+  }
+  function makeCollectionShim(name){
+    var colRef = collection(firestore, name);
+    return {
+      doc: function(id){
+        var ref_ = doc(firestore, name, id);
+        return {
+          set: function(data){ return setDoc(ref_, data); },
+          update: function(data){ return updateDoc(ref_, data); },
+          delete: function(){ return deleteDoc(ref_); },
+          get: function(){
+            return getDoc(ref_).then(function(snap){
+              return { id: snap.id, exists: snap.exists(), data: function(){ return snap.data(); } };
+            });
+          }
+        };
+      },
+      add: function(data){ return addDoc(colRef, data); },
+      where: function(field, op, val){ return makeQueryShim(query(colRef, where(field, op, val))); },
+      limit: function(n){ return makeQueryShim(query(colRef, limit(n))); },
+      onSnapshot: function(cb, errCb){ return onSnapshot(colRef, function(snap){ cb(wrapSnapshot(snap)); }, errCb); }
+    };
+  }
+  var FirebaseDB = { collection: makeCollectionShim };
+
+  var FirebaseUser = {
+    id: function(){ return auth.currentUser ? auth.currentUser.uid : null; },
+    canEdit: async function(){
+      if (!auth.currentUser) return false;
+      try {
+        var snap = await getDoc(doc(firestore, 'users', auth.currentUser.uid));
+        return !!(snap.exists() && snap.data().isTeamLead);
+      } catch(e){ return false; }
+    },
+    me: async function(){
+      if (!auth.currentUser) return {};
+      try {
+        var snap = await getDoc(doc(firestore, 'users', auth.currentUser.uid));
+        return { name: (snap.exists() && snap.data().name) || auth.currentUser.displayName || '' };
+      } catch(e){ return { name: auth.currentUser.displayName || '' }; }
+    },
+    profiles: async function(ids){
+      var uniq = Array.from(new Set(ids.filter(Boolean)));
+      var out = {};
+      if (!uniq.length) return out;
+      for (var i=0;i<uniq.length;i+=30){
+        var chunk = uniq.slice(i, i+30);
+        try {
+          var snap = await getDocs(query(collection(firestore,'users'), where(documentId(), 'in', chunk)));
+          snap.docs.forEach(function(d){ out[d.id] = d.data(); });
+        } catch(e){}
+      }
+      return out;
+    }
+  };
+
+  var FirebaseAssets = {
+    upload: async function(file){
+      var path = 'resources/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9_.-]/g,'_');
+      var storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      var url = await getDownloadURL(storageRef);
+      return { id: path, url: url, contentType: file.type, sizeBytes: file.size };
+    }
+  };
+
+  function waitForAuth(){
+    return new Promise(function(resolve){
+      var unsub = onAuthStateChanged(auth, function(user){ unsub(); resolve(user); });
+    });
+  }
+
+  async function ensureUserProfile(user){
+    try {
+      var ref_ = doc(firestore, 'users', user.uid);
+      var snap = await getDoc(ref_);
+      if (!snap.exists()){
+        await setDoc(ref_, { name: user.displayName || '', email: user.email || '', isTeamLead: false, createdAt: Date.now() });
+      } else if (user.displayName && snap.data().name !== user.displayName){
+        await setDoc(ref_, { name: user.displayName }, { merge: true });
+      }
+    } catch(e){}
+  }
+
+  function renderAccountBox(user){
+    var box = document.getElementById('account-box');
+    if (!box) return;
+    box.innerHTML = '<span style="font-size:12.5px;color:#cdd3ec;font-weight:600">' + esc(user.displayName || user.email || 'Signed in') + '</span>' +
+      '<button class="btn ghost small" id="btn-signout" style="color:#fff;border-color:rgba(255,255,255,.35)">Sign out</button>';
+    document.getElementById('btn-signout').addEventListener('click', async function(){
+      try { await signOut(auth); } catch(e){}
+      location.reload();
+    });
+  }
+
+  document.getElementById('btn-google-signin').addEventListener('click', async function(){
+    try { await signInWithPopup(auth, googleProvider); location.reload(); }
+    catch(e){ toast('Sign-in failed. Please try again.'); }
+  });
+
+  // ---------- constants ----------
+  var NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  var KEYS = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B'];
+  var BADGE_COLORS = ['#2f7a4f','#6b46c1','#d9730d','#33417f'];
+  var CAT_COLOR = { Praise: 'var(--praise)', Worship: 'var(--worship)' };
+
+  var SEED_SONGS = [
+    {order:1,title:'Bless God',category:'Praise',key:'G',tempo:'72 BPM',timeSig:'4/4',leaderName:'Ryan',bvs:'Chorus onwards',keys:'Piano / EP',pads:'Organ &amp; pads',acoustic1:'Standard',electric1:'Clean, light reverb, chorus',electric2:'Clean, light reverb'},
+    {order:2,title:'In Jesus Name',category:'Praise',key:'E',tempo:'68 BPM',timeSig:'4/4',leaderName:'All',bvs:'Strong start from pre-chorus',keys:'Piano / EP',pads:'Pads &amp; strings',acoustic1:'Standard',electric1:'Clean to light overdrive, medium reverb',electric2:'Moderate spring / plate reverb'},
+    {order:3,title:'Faithfulness',category:'Worship',key:'E',tempo:'86 BPM',timeSig:'4/4',leaderName:'Letitia',bvs:'From verse 1',keys:'Piano / EP',pads:'Pads &amp; synths',acoustic1:'Standard',electric1:'Clean, spring reverb, chorus',electric2:'Clean, light spring reverb'},
+    {order:4,title:'Speak The Word',category:'Worship',key:'E',tempo:'128 BPM',timeSig:'4/4',leaderName:'All',bvs:'From the top',keys:'Piano / EP',pads:'Pads &amp; strings',acoustic1:'Standard',electric1:'Medium overdrive, spring reverb, modulation, dotted eighth delay',electric2:'Light overdrive, moderate reverb, dotted eighth delay'},
+    {order:5,title:'God I Look To You',category:'Worship',key:'E / B',tempo:'TBC',timeSig:'&mdash;',leaderName:'Kendal',bvs:'Verse 1 repeat',keys:'Piano / EP',pads:'Pads &amp; strings',acoustic1:'Standard',electric1:'TBC',electric2:'TBC'},
+    {order:6,title:'Touch Of Heaven',category:'Worship',key:'E',tempo:'78 BPM',timeSig:'6/8',leaderName:'Ryan',bvs:'Chorus onwards',keys:'Piano / EP',pads:'Modulate as required',acoustic1:'Standard',electric1:'Clean, modulated reverb, dotted eighth delay',electric2:'Clean, light reverb, dotted eighth delay'},
+    {order:7,title:'Build My Life',category:'Praise',key:'G',tempo:'70 BPM',timeSig:'4/4',leaderName:'Bruce',bvs:'Verse 2',keys:'Piano / EP',pads:'Modulate as required',acoustic1:'Standard',electric1:'Clean, modulated reverb, dotted eighth delay',electric2:'Clean, light reverb, dotted eighth delay'},
+    {order:8,title:'Nothing Else',category:'Praise',key:'G',tempo:'80 BPM',timeSig:'4/4',leaderName:'All',bvs:'Wait for leader cue before joining',keys:'Piano / EP',pads:'Modulate as required',acoustic1:'Standard',electric1:'Medium overdrive, spring reverb, modulation, dotted eighth delay',electric2:'Clean, light reverb, dotted eighth delay'}
+  ];
+
+  // ---------- state ----------
+  var db = null, userNs = null, assetsNs = null, myId = null, canEdit = false, canWriteShared = null;
+  var songs = [];
+  var sheets = [];
+  var resources = [];
+  var suggestions = [];
+  var resourceFilter = 'all';
+  var songFilter = 'all';
+  var chordFolder = 'Praise';
+  var chordKeyFolder = null;
+  var activeSheetId = null;
+  var monthCursor = startOfMonth(new Date());
+  var editingSongId = null;
+  var profileCache = {};
+
+  function toast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    });
+  });
+
+  // ---------- song rendering ----------
+  function noteIndex(n){
+    var i = NOTES_SHARP.indexOf(n);
+    if (i >= 0) return i;
+    var flats = {'Db':1,'Eb':3,'Gb':6,'Ab':8,'Bb':10,'Cb':11,'Fb':4};
+    return flats.hasOwnProperty(n) ? flats[n] : -1;
+  }
+
+  function songBadgeColor(idx){ return BADGE_COLORS[idx % BADGE_COLORS.length]; }
+
+  function renderSongs(){
+    var grid = document.getElementById('song-grid');
+    grid.innerHTML = '';
+    var list = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    if (songFilter !== 'all') list = list.filter(function(s){ return s.category === songFilter; });
+    if (!list.length){
+      grid.innerHTML = '<div class="empty-note">No songs yet' + (canEdit ? ' &mdash; add the first one.' : ' for this set.') + '</div>';
+      return;
+    }
+    list.forEach(function(s, idx){
+      var card = document.createElement('div');
+      card.className = 'song-card';
+      var catColor = CAT_COLOR[s.category] || 'var(--navy-800)';
+      card.innerHTML =
+        '<div class="song-card-head">' +
+          '<div class="song-num" style="background:' + songBadgeColor(idx) + '">' + (s.order||idx+1) + '</div>' +
+          '<div><h3>' + esc(s.title) + '</h3><div class="song-cat-tag" style="color:' + catColor + '">' + esc(s.category||'') + '</div></div>' +
+        '</div>' +
+        '<div class="song-meta-row">' +
+          '<div><div class="lbl">KEY</div><div class="val">' + esc(s.key||'&mdash;') + '</div></div>' +
+          '<div><div class="lbl">TEMPO</div><div class="val">' + esc(s.tempo||'&mdash;') + '</div></div>' +
+          '<div><div class="lbl">TIME</div><div class="val">' + (s.timeSig||'&mdash;') + '</div></div>' +
+        '</div>' +
+        '<div class="leader-row' + ((s.leaderName||'').toLowerCase()==='all' ? ' all' : '') + '">&#127908; Leader: ' + esc(s.leaderName||'&mdash;') + '</div>' +
+        (s.bvs ? '<div class="bv-row">&#128100; BVs: ' + esc(s.bvs) + '</div>' : '') +
+        '<div class="song-instruments">' +
+          instLine('Keys', s.keys) + instLine('Pads', s.pads) + instLine('Acoustic', s.acoustic1) +
+          instLine('Electric 1', s.electric1) + instLine('Electric 2', s.electric2) +
+        '</div>' +
+        '<div class="song-card-actions"></div>';
+      if (canEdit){
+        var actions = card.querySelector('.song-card-actions');
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
+        editBtn.onclick = function(){ openSongModal(s); };
+        actions.appendChild(editBtn);
+      }
+      grid.appendChild(card);
+    });
+  }
+  function instLine(label, val){
+    if (!val) return '';
+    return '<div class="inst-line"><span class="inst-label">' + label + '</span><span class="inst-val">' + esc(val) + '</span></div>';
+  }
+  function esc(s){
+    return String(s==null?'':s).replace(/&(?!amp;|mdash;|hellip;|larr;|rarr;)/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.getElementById('song-filters').addEventListener('click', function(e){
+    var b = e.target.closest('.chip'); if (!b) return;
+    document.querySelectorAll('#song-filters .chip').forEach(function(c){ c.classList.remove('active'); });
+    b.classList.add('active');
+    songFilter = b.dataset.filter;
+    renderSongs();
+  });
+
+  // ---------- song modal ----------
+  var songOverlay = document.getElementById('song-overlay');
+  function openSongModal(song){
+    editingSongId = song ? song.id : null;
+    document.getElementById('song-modal-title').textContent = song ? 'Edit song' : 'Add song';
+    document.getElementById('btn-delete-song').style.display = song ? '' : 'none';
+    var f = function(id, val){ document.getElementById(id).value = val || ''; };
+    f('f-title', song && song.title); f('f-key', song && song.key); f('f-tempo', song && song.tempo);
+    f('f-time', song && song.timeSig); f('f-leader', song && song.leaderName); f('f-bvs', song && song.bvs);
+    f('f-keys', song && song.keys); f('f-pads', song && song.pads); f('f-acoustic1', song && song.acoustic1);
+    f('f-electric1', song && song.electric1); f('f-electric2', song && song.electric2);
+    document.getElementById('f-category').value = (song && song.category) || 'Praise';
+    songOverlay.classList.add('active');
+  }
+  document.getElementById('btn-add-song').addEventListener('click', function(){ openSongModal(null); });
+  document.getElementById('btn-cancel-song').addEventListener('click', function(){ songOverlay.classList.remove('active'); });
+  document.getElementById('btn-save-song').addEventListener('click', async function(){
+    var data = {
+      title: document.getElementById('f-title').value.trim() || 'Untitled',
+      category: document.getElementById('f-category').value,
+      key: document.getElementById('f-key').value.trim(),
+      tempo: document.getElementById('f-tempo').value.trim(),
+      timeSig: document.getElementById('f-time').value.trim(),
+      leaderName: document.getElementById('f-leader').value.trim(),
+      bvs: document.getElementById('f-bvs').value.trim(),
+      keys: document.getElementById('f-keys').value.trim(),
+      pads: document.getElementById('f-pads').value.trim(),
+      acoustic1: document.getElementById('f-acoustic1').value.trim(),
+      electric1: document.getElementById('f-electric1').value.trim(),
+      electric2: document.getElementById('f-electric2').value.trim(),
+      order: editingSongId ? (songs.find(function(s){return s.id===editingSongId}) || {}).order || songs.length+1 : songs.length+1
+    };
+    try {
+      if (!db) { toast('Not connected.'); return; }
+      if (editingSongId) await db.collection('songs').doc(editingSongId).set(data);
+      else await db.collection('songs').add(data);
+      songOverlay.classList.remove('active');
+      toast('Saved.');
+    } catch(err){ toast('Could not save (' + (err.code||'error') + ').'); }
+  });
+  document.getElementById('btn-delete-song').addEventListener('click', async function(){
+    if (!editingSongId) return;
+    try { await db.collection('songs').doc(editingSongId).delete(); songOverlay.classList.remove('active'); toast('Deleted.'); }
+    catch(err){ toast('Could not delete.'); }
+  });
+
+  // ---------- chord library ----------
+  document.getElementById('chord-folders').addEventListener('click', function(e){
+    var b = e.target.closest('.folder-tab'); if (!b) return;
+    document.querySelectorAll('.folder-tab').forEach(function(c){ c.classList.remove('active'); });
+    b.classList.add('active');
+    chordFolder = b.dataset.cat;
+    chordKeyFolder = null;
+    renderKeyFolders();
+  });
+
+  function renderKeyFolders(){
+    document.getElementById('chord-viewer').style.display = 'none';
+    document.getElementById('sheet-list-wrap').style.display = 'none';
+    var grid = document.getElementById('key-folder-grid');
+    grid.style.display = '';
+    var list = sheets.filter(function(s){ return s.category === chordFolder; });
+    if (!list.length){
+      grid.innerHTML = '<div class="empty-note">No ' + chordFolder.toLowerCase() + ' chord sheets yet.</div>';
+      return;
+    }
+    var groups = {};
+    list.forEach(function(s){
+      var k = s.originalKey || 'Unspecified';
+      groups[k] = groups[k] || [];
+      groups[k].push(s);
+    });
+    var keysInOrder = KEYS.filter(function(k){ return groups[k]; });
+    Object.keys(groups).forEach(function(k){ if (keysInOrder.indexOf(k) === -1) keysInOrder.push(k); });
+    grid.innerHTML = '';
+    keysInOrder.forEach(function(k){
+      var card = document.createElement('div');
+      card.className = 'keyfolder-card';
+      card.style.cursor = 'pointer';
+      card.innerHTML = '<div class="kf-icon">&#128193;</div><div><b>Key of ' + esc(k) + '</b><span>' + groups[k].length + ' song' + (groups[k].length===1?'':'s') + '</span></div>';
+      card.onclick = function(){ chordKeyFolder = k; renderSheetList(); };
+      grid.appendChild(card);
+    });
+  }
+
+  function renderSheetList(){
+    document.getElementById('chord-viewer').style.display = 'none';
+    document.getElementById('key-folder-grid').style.display = 'none';
+    document.getElementById('sheet-list-wrap').style.display = '';
+    document.getElementById('sheet-list-title').textContent = 'Key of ' + chordKeyFolder;
+    var wrap = document.getElementById('sheet-list');
+    var list = sheets.filter(function(s){ return s.category === chordFolder && (s.originalKey || 'Unspecified') === chordKeyFolder; });
+    if (!list.length){
+      wrap.innerHTML = '<div class="empty-note">No sheets in this key yet.</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    list.forEach(function(s){
+      var row = document.createElement('div');
+      row.className = 'sheet-row';
+      row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + '</span></div>';
+      var openBtn = document.createElement('button');
+      openBtn.className = 'btn small'; openBtn.textContent = 'View & transpose';
+      openBtn.onclick = function(){ openSheetViewer(s); };
+      row.appendChild(openBtn);
+      wrap.appendChild(row);
+    });
+  }
+  document.getElementById('btn-back-to-keys').addEventListener('click', function(){ chordKeyFolder = null; renderKeyFolders(); });
+
+  function openSheetViewer(sheet){
+    activeSheetId = sheet.id;
+    document.getElementById('sheet-list-wrap').style.display = 'none';
+    document.getElementById('chord-viewer').style.display = '';
+    document.getElementById('viewer-title').textContent = sheet.title;
+    document.getElementById('viewer-sub').innerHTML = esc(sheet.category) + ' &middot; original key ' + esc(sheet.originalKey);
+    var sel = document.getElementById('viewer-key');
+    sel.innerHTML = KEYS.map(function(k){ return '<option ' + (k===sheet.originalKey?'selected':'') + '>' + k + '</option>'; }).join('');
+    sel.onchange = function(){ renderTransposed(sheet, sel.value); };
+    renderTransposed(sheet, sheet.originalKey);
+  }
+  document.getElementById('btn-back-to-sheets').addEventListener('click', renderSheetList);
+
+  var CHORD_SUFFIX = '(?:maj7|maj9|majb5|maj|min7|min|mM7|m7b5|m7|m9|m6|m11|m13|m|dim7|dim|aug|sus2|sus4|sus|add9|add11|add2|add|6|7|9|11|13|2|4|5)?';
+  var CHORD_RE = new RegExp('^([A-G])(#|b)?(' + CHORD_SUFFIX + ')(?:\\/([A-G])(#|b)?)?$');
+
+  function transposeToken(tok, shift){
+    var m = tok.match(CHORD_RE);
+    if (!m) return tok;
+    var rootIdx = noteIndex(m[1] + (m[2]||''));
+    if (rootIdx < 0) return tok;
+    var newRoot = NOTES_SHARP[(rootIdx + shift + 1200) % 12];
+    var out = newRoot + (m[3]||'');
+    if (m[4]){
+      var bassIdx = noteIndex(m[4] + (m[5]||''));
+      if (bassIdx >= 0) out += '/' + NOTES_SHARP[(bassIdx + shift + 1200) % 12];
+    }
+    return out;
+  }
+  function transposeText(text, shift){
+    return text.replace(/[A-Za-z0-9#\/]+/g, function(tok){
+      var replaced = transposeToken(tok, shift);
+      return replaced;
+    });
+  }
+  function renderTransposed(sheet, targetKey){
+    var origIdx = noteIndex(normKey(sheet.originalKey));
+    var targetIdx = noteIndex(normKey(targetKey));
+    var shift = (origIdx>=0 && targetIdx>=0) ? (targetIdx - origIdx) : 0;
+    var out = transposeText(sheet.body || '', shift);
+    var el = document.getElementById('viewer-body');
+    el.innerHTML = out.replace(/[A-Za-z0-9#\/]+/g, function(tok){
+      var m = tok.match(CHORD_RE);
+      var t = transposeToken(tok, shift);
+      return m ? ('<span class="chord-tok">' + esc(t) + '</span>') : esc(t);
+    });
+  }
+  function normKey(k){ return (k||'C').split(' ')[0].split('/')[0]; }
+
+  // upload modal
+  var sheetOverlay = document.getElementById('sheet-overlay');
+  document.getElementById('btn-add-sheet').addEventListener('click', function(){
+    document.getElementById('s-title').value = '';
+    document.getElementById('s-category').value = chordFolder;
+    document.getElementById('s-key').innerHTML = KEYS.map(function(k){ return '<option>' + k + '</option>'; }).join('');
+    document.getElementById('s-file').value = '';
+    document.getElementById('s-body').value = '';
+    sheetOverlay.classList.add('active');
+  });
+  document.getElementById('btn-cancel-sheet').addEventListener('click', function(){ sheetOverlay.classList.remove('active'); });
+  document.getElementById('s-file').addEventListener('change', function(e){
+    var file = e.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){ document.getElementById('s-body').value = reader.result; };
+    reader.readAsText(file);
+  });
+  document.getElementById('btn-save-sheet').addEventListener('click', async function(){
+    var title = document.getElementById('s-title').value.trim();
+    var body = document.getElementById('s-body').value;
+    if (!title || !body.trim()){ toast('Add a title and chord sheet text.'); return; }
+    var data = { title: title, category: document.getElementById('s-category').value, originalKey: document.getElementById('s-key').value, body: body, uploadedBy: myId || null, createdAt: Date.now() };
+    try {
+      if (!db) { toast('Not connected.'); return; }
+      await db.collection('chordsheets').add(data);
+      sheetOverlay.classList.remove('active');
+      toast('Chord sheet saved.');
+    } catch(err){ toast('Could not save.'); }
+  });
+
+  // ---------- availability ----------
+  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function sundaysOfMonth(monthStart){
+    var out = [];
+    var d = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+    while (d.getDay() !== 0) d.setDate(d.getDate()+1);
+    while (d.getMonth() === monthStart.getMonth()){
+      out.push(new Date(d));
+      d.setDate(d.getDate()+7);
+    }
+    return out;
+  }
+  function weekId(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function fmtDate(d){ return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
+  function fmtMonth(d){ return d.toLocaleDateString(undefined, { month:'long', year:'numeric' }); }
+
+  var availUnsub = null;
+  var availDocs = {}; // weekId_userId -> data
+
+  document.getElementById('month-prev').addEventListener('click', function(){
+    monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()-1, 1);
+    renderAvailability();
+  });
+  document.getElementById('month-next').addEventListener('click', function(){
+    monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+1, 1);
+    renderAvailability();
+  });
+
+  function renderAvailability(){
+    document.getElementById('month-label').textContent = fmtMonth(monthCursor);
+    var sundays = sundaysOfMonth(monthCursor);
+    var ids = sundays.map(weekId);
+
+    if (availUnsub) { availUnsub(); availUnsub = null; }
+    availDocs = {};
+    renderMyWeeks(sundays);
+    renderTeamGrid(sundays);
+
+    if (!db) return;
+    try {
+      availUnsub = db.collection('availability').where('weekId','in', ids).onSnapshot(function(snap){
+        availDocs = {};
+        snap.docs.forEach(function(doc){
+          var d = doc.data();
+          availDocs[doc.id] = d;
+        });
+        renderMyWeeks(sundays);
+        renderTeamGrid(sundays);
+      }, function(){ /* ignore */ });
+    } catch(e){ /* invalid query, ignore */ }
+  }
+
+  function renderMyWeeks(sundays){
+    var wrap = document.getElementById('my-weeks');
+    wrap.innerHTML = '';
+    sundays.forEach(function(sun){
+      var wid = weekId(sun);
+      var docId = wid + '_' + (myId || 'anon');
+      var current = availDocs[docId] ? availDocs[docId].status : null;
+      var row = document.createElement('div');
+      row.className = 'week-row';
+      row.innerHTML = '<div class="week-date">' + fmtDate(sun) + '</div><div class="status-btns"></div>';
+      var btns = row.querySelector('.status-btns');
+      [['available','Available'],['maybe','Maybe'],['unavailable','Can\'t make it']].forEach(function(pair){
+        var b = document.createElement('button');
+        b.className = 'status-btn' + (current===pair[0] ? ' active' : '');
+        b.dataset.s = pair[0];
+        b.textContent = pair[1];
+        b.onclick = function(){ setAvailability(wid, pair[0]); };
+        btns.appendChild(b);
+      });
+      wrap.appendChild(row);
+    });
+  }
+
+  async function setAvailability(wid, status){
+    if (!db || !myId){ toast('Sign-in required to set availability.'); return; }
+    var docId = wid + '_' + myId;
+    try {
+      await db.collection('availability').doc(docId).set({ weekId: wid, userId: myId, status: status, updatedAt: Date.now() });
+    } catch(err){ toast('Could not save your availability.'); }
+  }
+
+  async function renderTeamGrid(sundays){
+    var table = document.getElementById('team-grid');
+    var userIds = {};
+    Object.keys(availDocs).forEach(function(k){ userIds[availDocs[k].userId] = true; });
+    var ids = Object.keys(userIds);
+    if (!ids.length){
+      table.innerHTML = '<tr><td style="padding:16px 4px;color:var(--ink-soft)">No one has set availability for this month yet.</td></tr>';
+      return;
+    }
+    var names = {};
+    if (userNs){
+      try { var profiles = await userNs.profiles(ids); ids.forEach(function(id){ names[id] = (profiles[id] && profiles[id].name) || 'Someone'; }); }
+      catch(e){ ids.forEach(function(id){ names[id] = 'Someone'; }); }
+    } else { ids.forEach(function(id){ names[id] = 'Someone'; }); }
+
+    var head = '<tr><th>Name</th>' + sundays.map(function(s){ return '<th>' + fmtDate(s) + '</th>'; }).join('') + '</tr>';
+    var rows = ids.map(function(id){
+      var cells = sundays.map(function(s){
+        var d = availDocs[weekId(s) + '_' + id];
+        var status = d ? d.status : 'none';
+        var symbol = status==='available' ? '&#10003;' : status==='maybe' ? '?' : status==='unavailable' ? '&#10007;' : '';
+        return '<td><span class="pill ' + status + '">' + symbol + '</span></td>';
+      }).join('');
+      return '<tr><td>' + esc(names[id]) + (id===myId ? ' (you)' : '') + '</td>' + cells + '</tr>';
+    }).join('');
+    table.innerHTML = head + rows;
+  }
+
+  // ---------- shared name resolution ----------
+  async function resolveNames(ids){
+    var need = ids.filter(function(id){ return id && !profileCache[id]; });
+    if (need.length && userNs){
+      try {
+        var ps = await userNs.profiles(need);
+        need.forEach(function(id){ profileCache[id] = (ps[id] && ps[id].name) || 'Someone'; });
+      } catch(e){ need.forEach(function(id){ profileCache[id] = 'Someone'; }); }
+    }
+    var out = {};
+    ids.forEach(function(id){ out[id] = id ? (profileCache[id] || 'Someone') : 'Someone'; });
+    return out;
+  }
+  function timeAgo(ts){
+    if (!ts) return '';
+    var s = Math.max(1, Math.round((Date.now()-ts)/1000));
+    if (s < 60) return 'just now';
+    var m = Math.round(s/60); if (m < 60) return m + 'm ago';
+    var h = Math.round(m/60); if (h < 24) return h + 'h ago';
+    var d = Math.round(h/24); return d + 'd ago';
+  }
+
+  // ---------- resources ----------
+  document.getElementById('resource-filters').addEventListener('click', function(e){
+    var b = e.target.closest('.chip'); if (!b) return;
+    document.querySelectorAll('#resource-filters .chip').forEach(function(c){ c.classList.remove('active'); });
+    b.classList.add('active');
+    resourceFilter = b.dataset.filter;
+    renderResources();
+  });
+
+  function resIcon(r){
+    if (r.type === 'link') return '&#128279;';
+    var ct = r.contentType || '';
+    if (ct.indexOf('video') === 0) return '&#127909;';
+    if (ct.indexOf('audio') === 0) return '&#127925;';
+    if (ct.indexOf('image') === 0) return '&#128247;';
+    if (ct.indexOf('pdf') >= 0) return '&#128196;';
+    return '&#128196;';
+  }
+
+  function renderResources(){
+    var wrap = document.getElementById('resource-list');
+    var list = resources.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    if (resourceFilter !== 'all') list = list.filter(function(r){ return r.category === resourceFilter; });
+    if (!list.length){ wrap.innerHTML = '<div class="empty-note">No resources here yet.</div>'; return; }
+    wrap.innerHTML = '';
+    list.forEach(function(r){
+      var row = document.createElement('div');
+      row.className = 'sheet-row';
+      var openHref = r.type === 'link' ? r.linkUrl : r.assetUrl;
+      row.innerHTML =
+        '<div class="res-row">' +
+          '<div class="res-icon">' + resIcon(r) + '</div>' +
+          '<div class="info"><b>' + esc(r.title) + '</b>' +
+            (r.description ? '<span>' + esc(r.description) + '</span>' : '') +
+            '<span class="res-cat-tag">' + esc(r.category) + '</span>' +
+          '</div>' +
+        '</div>';
+      var a = document.createElement('a');
+      a.href = openHref || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.className = 'btn small'; a.textContent = 'Open';
+      row.appendChild(a);
+      wrap.appendChild(row);
+    });
+  }
+
+  var resourceOverlay = document.getElementById('resource-overlay');
+  document.getElementById('btn-add-resource').addEventListener('click', function(){
+    document.getElementById('r-title').value = '';
+    document.getElementById('r-desc').value = '';
+    document.getElementById('r-category').value = 'Warm-up';
+    document.getElementById('r-file').value = '';
+    document.getElementById('r-link').value = '';
+    document.getElementById('r-type-file').checked = true;
+    document.getElementById('r-file-field').style.display = '';
+    document.getElementById('r-link-field').style.display = 'none';
+    resourceOverlay.classList.add('active');
+  });
+  document.getElementById('btn-cancel-resource').addEventListener('click', function(){ resourceOverlay.classList.remove('active'); });
+  document.querySelectorAll('input[name="r-type"]').forEach(function(r){
+    r.addEventListener('change', function(){
+      var isFile = document.getElementById('r-type-file').checked;
+      document.getElementById('r-file-field').style.display = isFile ? '' : 'none';
+      document.getElementById('r-link-field').style.display = isFile ? 'none' : '';
+    });
+  });
+  document.getElementById('btn-save-resource').addEventListener('click', async function(){
+    var title = document.getElementById('r-title').value.trim();
+    if (!title){ toast('Add a title.'); return; }
+    if (!db){ toast('Not connected.'); return; }
+    var isFile = document.getElementById('r-type-file').checked;
+    var data = { title: title, description: document.getElementById('r-desc').value.trim(), category: document.getElementById('r-category').value, uploadedBy: myId || null, createdAt: Date.now() };
+    try {
+      if (isFile){
+        var file = document.getElementById('r-file').files[0];
+        if (!file){ toast('Choose a file to upload.'); return; }
+        if (!assetsNs){ toast('File uploads need this page reopened with upload access.'); return; }
+        var up = await assetsNs.upload(file);
+        data.type = 'file'; data.assetId = up.id; data.assetUrl = up.url; data.contentType = up.contentType; data.sizeBytes = up.sizeBytes;
+      } else {
+        var link = document.getElementById('r-link').value.trim();
+        if (!link){ toast('Add a link URL.'); return; }
+        data.type = 'link'; data.linkUrl = link;
+      }
+      await db.collection('resources').add(data);
+      resourceOverlay.classList.remove('active');
+      toast('Resource added.');
+    } catch(err){ toast('Could not save (' + (err.code||'error') + ').'); }
+  });
+
+  // ---------- feedback ----------
+  function recentSundays(n){
+    var out = [];
+    var d = new Date();
+    while (d.getDay() !== 0) d.setDate(d.getDate()-1);
+    for (var i=0;i<n;i++){ out.push(new Date(d)); d.setDate(d.getDate()-7); }
+    return out;
+  }
+  function populateFeedbackWeeks(){
+    var sel = document.getElementById('fb-week');
+    var wks = recentSundays(10);
+    sel.innerHTML = wks.map(function(s){ return '<option value="' + weekId(s) + '">' + s.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'}) + '</option>'; }).join('');
+  }
+  document.getElementById('fb-week').addEventListener('change', renderFeedbackList);
+
+  async function renderFeedbackList(){
+    var wid = document.getElementById('fb-week').value;
+    var wrap = document.getElementById('feedback-list');
+    if (!db){ wrap.innerHTML = ''; return; }
+    try {
+      var snap = await db.collection('feedback').where('weekId','==',wid).get();
+      var items = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+      if (!items.length){ wrap.innerHTML = '<div class="empty-note">No feedback for this Sunday yet.</div>'; return; }
+      var names = await resolveNames(items.map(function(i){ return i.authorId; }));
+      wrap.innerHTML = items.map(function(i){
+        return '<div class="fb-item"><div class="fb-meta"><span>' + esc(names[i.authorId]) + '</span><span>' + timeAgo(i.createdAt) + '</span></div>' + esc(i.comment) + '</div>';
+      }).join('');
+    } catch(e){ wrap.innerHTML = ''; }
+  }
+  document.getElementById('btn-add-feedback').addEventListener('click', async function(){
+    var text = document.getElementById('fb-text').value.trim();
+    if (!text){ toast('Write some feedback first.'); return; }
+    if (!db || !myId){ toast('Sign-in required to post feedback.'); return; }
+    try {
+      await db.collection('feedback').add({ weekId: document.getElementById('fb-week').value, authorId: myId, comment: text, createdAt: Date.now() });
+      document.getElementById('fb-text').value = '';
+      renderFeedbackList();
+      toast('Feedback posted.');
+    } catch(err){ toast('Could not post feedback.'); }
+  });
+
+  // ---------- song suggestions ----------
+  function renderSuggestions(){
+    var wrap = document.getElementById('suggestion-list');
+    var list = suggestions.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    if (!list.length){ wrap.innerHTML = '<div class="empty-note">No suggestions yet.</div>'; return; }
+    resolveNames(list.map(function(s){ return s.submittedBy; })).then(function(names){
+      wrap.innerHTML = list.map(function(s){
+        var status = s.status || 'New';
+        var actions = canEdit ? (
+          '<div class="sg-status-btns">' +
+            ['New','Approved','Passed'].map(function(st){
+              return '<button data-id="' + s.id + '" data-status="' + st + '">' + st + '</button>';
+            }).join('') +
+          '</div>'
+        ) : '';
+        return '<div class="sg-item"><div class="sg-meta"><span>' + esc(names[s.submittedBy]) + ' &middot; ' + timeAgo(s.createdAt) + '</span><span class="status-tag ' + status + '">' + status + '</span></div>' +
+          '<b>' + esc(s.title) + '</b>' + (s.link ? ' &mdash; ' + esc(s.link) : '') +
+          (s.reason ? '<div style="margin-top:4px;color:var(--ink-soft)">' + esc(s.reason) + '</div>' : '') +
+          actions + '</div>';
+      }).join('');
+      wrap.querySelectorAll('.sg-status-btns button').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          try { await db.collection('suggestions').doc(btn.dataset.id).update({ status: btn.dataset.status }); }
+          catch(e){ toast('Could not update status.'); }
+        });
+      });
+    });
+  }
+  document.getElementById('btn-add-suggestion').addEventListener('click', async function(){
+    var title = document.getElementById('sg-title').value.trim();
+    if (!title){ toast('Add a song title.'); return; }
+    if (!db || !myId){ toast('Sign-in required to suggest a song.'); return; }
+    try {
+      await db.collection('suggestions').add({
+        title: title, link: document.getElementById('sg-link').value.trim(),
+        reason: document.getElementById('sg-reason').value.trim(),
+        submittedBy: myId, status: 'New', createdAt: Date.now()
+      });
+      document.getElementById('sg-title').value = ''; document.getElementById('sg-link').value = ''; document.getElementById('sg-reason').value = '';
+      toast('Suggestion sent.');
+    } catch(err){ toast('Could not send suggestion.'); }
+  });
+
+  // ---------- boot ----------
+  async function boot(){
+    db = FirebaseDB; userNs = FirebaseUser; assetsNs = FirebaseAssets;
+
+    var authedUser = await waitForAuth();
+    if (!authedUser){
+      document.getElementById('auth-overlay').classList.add('active');
+      return;
+    }
+    document.getElementById('auth-overlay').classList.remove('active');
+    await ensureUserProfile(authedUser);
+    renderAccountBox(authedUser);
+
+    if (userNs){
+      try {
+        myId = await userNs.id();
+        canEdit = await userNs.canEdit();
+        var me = await userNs.me();
+        document.getElementById('my-name-hint').textContent = me.name ? ('Signed in as ' + me.name) : 'Set your status below.';
+      } catch(e){}
+    }
+    if (!myId) document.getElementById('my-name-hint').textContent = 'Sign in to set your availability.';
+
+    if (canEdit) document.getElementById('btn-add-song').style.display = '';
+
+    if (db){
+      try {
+        db.collection('songs').onSnapshot(function(snap){
+          songs = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderSongs();
+        }, function(){ toast('Could not load songs.'); });
+      } catch(e){}
+      try {
+        db.collection('chordsheets').onSnapshot(function(snap){
+          sheets = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          if (document.getElementById('chord-viewer').style.display === 'none'){
+            if (chordKeyFolder) renderSheetList(); else renderKeyFolders();
+          }
+        }, function(){ toast('Could not load chord sheets.'); });
+      } catch(e){}
+      try {
+        db.collection('resources').onSnapshot(function(snap){
+          resources = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderResources();
+        }, function(){ toast('Could not load resources.'); });
+      } catch(e){}
+      try {
+        db.collection('suggestions').onSnapshot(function(snap){
+          suggestions = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderSuggestions();
+        }, function(){ toast('Could not load suggestions.'); });
+      } catch(e){}
+
+      // seed songs once if empty (best-effort, only if this viewer can edit)
+      setTimeout(async function(){
+        try {
+          if (canEdit){
+            var snap = await db.collection('songs').limit(1).get();
+            if (snap.empty){
+              for (var i=0;i<SEED_SONGS.length;i++){ await db.collection('songs').add(SEED_SONGS[i]); }
+            }
+          }
+        } catch(e){}
+      }, 600);
+    } else {
+      songs = SEED_SONGS.map(function(s,i){ var o = Object.assign({}, s); o.id = 'seed'+i; return o; });
+      renderSongs();
+      document.getElementById('sheet-list').innerHTML = '<div class="empty-note">Connect this page inside Claude to upload and save chord sheets.</div>';
+      document.getElementById('resource-list').innerHTML = '<div class="empty-note">Connect this page inside Claude to add resources.</div>';
+    }
+
+    renderKeyFolders();
+    renderAvailability();
+    populateFeedbackWeeks();
+    renderFeedbackList();
+  }
+  boot();
+
+})();
+</script>
+</body>
+</html>

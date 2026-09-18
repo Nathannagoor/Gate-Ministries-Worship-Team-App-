@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isTeamLead() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isTeamLead == true;
+    }
+
+    // Everyone signed in can read profiles (needed to show names in the
+    // team grid, feedback, suggestions). Users can create/update their own
+    // profile, but only a team lead can grant isTeamLead.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == userId
+                    && request.resource.data.isTeamLead == false;
+      allow update: if signedIn() && (
+                      (request.auth.uid == userId &&
+                       request.resource.data.isTeamLead == resource.data.isTeamLead)
+                      || isTeamLead()
+                    );
+    }
+
+    // Song arrangements: everyone reads, only a team lead edits.
+    match /songs/{songId} {
+      allow read: if signedIn();
+      allow write: if isTeamLead();
+    }
+
+    // Chord sheets: everyone reads, any signed-in member can upload a new
+    // one, only a team lead can edit/delete.
+    match /chordsheets/{sheetId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isTeamLead();
+    }
+
+    // Resources: everyone reads, any signed-in member can add one, only a
+    // team lead can edit/delete.
+    match /resources/{resourceId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isTeamLead();
+    }
+
+    // Availability: everyone reads the grid, each person can only write
+    // their own status.
+    match /availability/{docId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Feedback: everyone reads, each person can only post as themselves,
+    // and feedback isn't editable after posting.
+    match /feedback/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+    }
+
+    // Song suggestions: everyone reads, each person submits as themselves,
+    // only a team lead can change the status.
+    match /suggestions/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.submittedBy == request.auth.uid;
+      allow update: if isTeamLead();
+    }
+  }
+}
