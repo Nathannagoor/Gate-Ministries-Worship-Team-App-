@@ -465,12 +465,12 @@
 <!-- Add / edit service modal -->
 <div class="overlay" id="service-overlay">
   <div class="modal">
-    <h3 id="service-modal-title">Add service</h3>
+    <h3 id="service-modal-title">Add special event</h3>
     <div class="field-row" style="grid-template-columns:1fr 1fr">
       <div class="field"><label>Date</label><input type="date" id="sv-date"></div>
       <div class="field"><label>Time</label><input type="time" id="sv-time" value="09:00"></div>
     </div>
-    <div class="field"><label>Label (optional)</label><input id="sv-label" placeholder="Morning service"></div>
+    <div class="field"><label>Name</label><input id="sv-label" placeholder="Christmas Eve, Youth Conference, Easter&hellip;"></div>
     <div class="modal-actions">
       <button class="btn danger" id="btn-delete-service" style="display:none;margin-right:auto">Delete</button>
       <button class="btn ghost" id="btn-cancel-service">Cancel</button>
@@ -961,6 +961,20 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       activeServiceId = pick ? pick.id : null;
     }
   }
+  var servicesLoaded = false;
+  function ensureSundays(){
+    var have = {};
+    services.forEach(function(x){ have[x.id] = true; });
+    var d = new Date(); d.setHours(12,0,0,0);
+    d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+    for (var i=0;i<12;i++){
+      var iso = svcISO(d), id = 'sunday-' + iso;
+      if (!have[id]){
+        db.collection('services').doc(id).set({ date: iso, time: '09:00', label: 'Sunday service', assign: {}, avail: {}, set: [], notes: '', createdAt: Date.now() }).catch(function(){});
+      }
+      d.setDate(d.getDate()+7);
+    }
+  }
   function curService(){ return services.find(function(s){ return s.id === activeServiceId; }); }
   function saveServiceField(s, field, value){
     var data = {}; data[field] = value;
@@ -1059,8 +1073,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     }).join('');
     el.innerHTML = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px;">' +
       (list.length ? '<select class="svc-pick" style="max-width:280px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;">'+options+'</select>' : '<span class="tiny-note" style="margin:0">No services yet.</span>') +
-      (canEdit ? '<button class="btn ghost small svc-add">+ Add service</button>' : '') +
-      (canEdit && list.length ? '<button class="btn ghost small svc-edit">Edit service</button>' : '') +
+      (canEdit ? '<button class="btn ghost small svc-add">+ Add special event</button>' : '') +
+      (canEdit && list.length ? '<button class="btn ghost small svc-edit">Edit</button>' : '') +
       '</div>';
     var sel = el.querySelector('.svc-pick');
     if (sel) sel.onchange = function(){ activeServiceId = sel.value; renderServiceViews(); };
@@ -1072,11 +1086,11 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
   function openServiceModal(s){
     var isNew = !s;
-    document.getElementById('service-modal-title').textContent = isNew ? 'Add service' : 'Edit service';
-    document.getElementById('btn-delete-service').style.display = isNew ? 'none' : '';
+    document.getElementById('service-modal-title').textContent = isNew ? 'Add special event' : 'Edit service';
+    document.getElementById('btn-delete-service').style.display = (isNew || String(s.id).indexOf('sunday-') === 0) ? 'none' : '';
     editingServiceId = isNew ? null : s.id;
-    document.getElementById('sv-date').value = isNew ? nextSundayISO() : s.date;
-    document.getElementById('sv-time').value = isNew ? '09:00' : s.time;
+    document.getElementById('sv-date').value = isNew ? svcISO(new Date()) : s.date;
+    document.getElementById('sv-time').value = isNew ? '18:00' : s.time;
     document.getElementById('sv-label').value = isNew ? '' : (s.label||'');
     document.getElementById('service-overlay').classList.add('active');
   }
@@ -1086,6 +1100,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     if (!date){ toast('Pick a date.'); return; }
     var time = document.getElementById('sv-time').value || '09:00';
     var label = document.getElementById('sv-label').value.trim();
+    if (!editingServiceId && !label){ toast('Give the event a name.'); return; }
     try {
       if (editingServiceId){
         await db.collection('services').doc(editingServiceId).update({ date: date, time: time, label: label });
@@ -1113,11 +1128,11 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   function renderAvailabilityTab(){
     var el = document.getElementById('availability-body'); if (!el) return;
     var head = '<div class="panel-head"><div><h2 class="display">Availability</h2><p>Tap a cell to cycle: no reply &rarr; can serve &rarr; can’t serve.</p></div></div>';
-    var upcoming = svcList().filter(function(s){ return s.date >= svcISO(new Date()); }).slice(0,8);
+    var upcoming = svcList().filter(function(s){ return s.date >= svcISO(new Date()); }).slice(0,10);
     var mem = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
 
     if (!upcoming.length){
-      el.innerHTML = head + '<div class="empty-note">No upcoming services yet' + (canEdit ? ' &mdash; add one from the Roster tab.' : '.') + '</div>';
+      el.innerHTML = head + '<div class="empty-note">No upcoming services yet' + (canEdit ? ' &mdash; they appear automatically.' : '.') + '</div>';
       return;
     }
     if (!mem.length){
@@ -1826,6 +1841,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       try {
         db.collection('services').onSnapshot(function(snap){
           services = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          if (!servicesLoaded){ servicesLoaded = true; ensureSundays(); }
           ensureActiveService();
           renderServiceViews();
         }, function(){ toast('Could not load services.'); });

@@ -10,6 +10,13 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isTeamLead == true;
     }
+    function isBlankSunday(serviceId) {
+      return serviceId.matches('sunday-[0-9]{4}-[0-9]{2}-[0-9]{2}') &&
+        request.resource.data.date == serviceId[7:17] &&
+        request.resource.data.assign.size() == 0 &&
+        request.resource.data.avail.size() == 0 &&
+        request.resource.data.set.size() == 0;
+    }
     function onlyAvailChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avail']);
     }
@@ -53,11 +60,13 @@ service cloud.firestore {
 
     // Services: a specific dated/named event (a Sunday or a special
     // occasion) with its roster assignment, availability, set list and
-    // notes. Team leads manage the service itself; any signed-in member
-    // may only ever touch their own availability answers on it.
+    // notes. Regular Sundays are auto-created (blank) by any signed-in
+    // client under the id sunday-YYYY-MM-DD; team leads manage everything
+    // else, and members may only touch availability answers.
     match /services/{serviceId} {
       allow read: if signedIn();
-      allow create, delete: if isTeamLead();
+      allow create: if isTeamLead() || (signedIn() && isBlankSunday(serviceId));
+      allow delete: if isTeamLead();
       allow update: if isTeamLead() || (signedIn() && onlyAvailChanged());
     }
 
