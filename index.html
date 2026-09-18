@@ -465,15 +465,8 @@ Amazing grace, how sweet the sound"></textarea>
       </div>
     </div>
     <div class="field"><label>Description (optional)</label><input id="r-desc" placeholder="Short note about this resource"></div>
-    <div class="field">
-      <label>Type</label>
-      <div style="display:flex;gap:16px;font-size:13px;font-weight:600;padding-top:4px">
-        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="r-type" value="file" id="r-type-file" checked> Upload a file</label>
-        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="r-type" value="link" id="r-type-link"> Link (e.g. YouTube)</label>
-      </div>
-    </div>
-    <div class="field" id="r-file-field"><label>File (PDF, video, audio, image, text)</label><input type="file" id="r-file"></div>
-    <div class="field" id="r-link-field" style="display:none"><label>Link URL</label><input id="r-link" placeholder="https://..."></div>
+    <div class="field"><label>Link URL</label><input id="r-link" placeholder="https://... (YouTube, Google Drive, Dropbox, etc.)"></div>
+    <div class="tiny-note">Paste a link to the file (e.g. a shared Google Drive/Dropbox link) or video. Direct file uploads aren't enabled for this hub yet.</div>
     <div class="modal-actions">
       <button class="btn ghost" id="btn-cancel-resource">Cancel</button>
       <button class="btn gold" id="btn-save-resource">Save resource</button>
@@ -501,9 +494,6 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
   getDoc, getDocs, onSnapshot, query, where, limit, documentId
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
-import {
-  getStorage, ref, uploadBytes, getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
 import { firebaseConfig } from './firebase-config.js';
 
 (function(){
@@ -513,7 +503,6 @@ import { firebaseConfig } from './firebase-config.js';
   var auth = getAuth(firebaseApp);
   var googleProvider = new GoogleAuthProvider();
   var firestore = getFirestore(firebaseApp);
-  var storage = getStorage(firebaseApp);
 
   function wrapSnapshot(snap){
     return {
@@ -582,16 +571,6 @@ import { firebaseConfig } from './firebase-config.js';
     }
   };
 
-  var FirebaseAssets = {
-    upload: async function(file){
-      var path = 'resources/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9_.-]/g,'_');
-      var storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      var url = await getDownloadURL(storageRef);
-      return { id: path, url: url, contentType: file.type, sizeBytes: file.size };
-    }
-  };
-
   function waitForAuth(){
     return new Promise(function(resolve){
       var unsub = onAuthStateChanged(auth, function(user){ unsub(); resolve(user); });
@@ -644,7 +623,7 @@ import { firebaseConfig } from './firebase-config.js';
   ];
 
   // ---------- state ----------
-  var db = null, userNs = null, assetsNs = null, myId = null, canEdit = false, canWriteShared = null;
+  var db = null, userNs = null, myId = null, canEdit = false, canWriteShared = null;
   var songs = [];
   var sheets = [];
   var resources = [];
@@ -1112,39 +1091,21 @@ import { firebaseConfig } from './firebase-config.js';
     document.getElementById('r-title').value = '';
     document.getElementById('r-desc').value = '';
     document.getElementById('r-category').value = 'Warm-up';
-    document.getElementById('r-file').value = '';
     document.getElementById('r-link').value = '';
-    document.getElementById('r-type-file').checked = true;
-    document.getElementById('r-file-field').style.display = '';
-    document.getElementById('r-link-field').style.display = 'none';
     resourceOverlay.classList.add('active');
   });
   document.getElementById('btn-cancel-resource').addEventListener('click', function(){ resourceOverlay.classList.remove('active'); });
-  document.querySelectorAll('input[name="r-type"]').forEach(function(r){
-    r.addEventListener('change', function(){
-      var isFile = document.getElementById('r-type-file').checked;
-      document.getElementById('r-file-field').style.display = isFile ? '' : 'none';
-      document.getElementById('r-link-field').style.display = isFile ? 'none' : '';
-    });
-  });
   document.getElementById('btn-save-resource').addEventListener('click', async function(){
     var title = document.getElementById('r-title').value.trim();
     if (!title){ toast('Add a title.'); return; }
     if (!db){ toast('Not connected.'); return; }
-    var isFile = document.getElementById('r-type-file').checked;
-    var data = { title: title, description: document.getElementById('r-desc').value.trim(), category: document.getElementById('r-category').value, uploadedBy: myId || null, createdAt: Date.now() };
+    var link = document.getElementById('r-link').value.trim();
+    if (!link){ toast('Add a link URL.'); return; }
+    var data = {
+      title: title, description: document.getElementById('r-desc').value.trim(), category: document.getElementById('r-category').value,
+      uploadedBy: myId || null, createdAt: Date.now(), type: 'link', linkUrl: link
+    };
     try {
-      if (isFile){
-        var file = document.getElementById('r-file').files[0];
-        if (!file){ toast('Choose a file to upload.'); return; }
-        if (!assetsNs){ toast('File uploads need this page reopened with upload access.'); return; }
-        var up = await assetsNs.upload(file);
-        data.type = 'file'; data.assetId = up.id; data.assetUrl = up.url; data.contentType = up.contentType; data.sizeBytes = up.sizeBytes;
-      } else {
-        var link = document.getElementById('r-link').value.trim();
-        if (!link){ toast('Add a link URL.'); return; }
-        data.type = 'link'; data.linkUrl = link;
-      }
       await db.collection('resources').add(data);
       resourceOverlay.classList.remove('active');
       toast('Resource added.');
@@ -1237,7 +1198,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   // ---------- boot ----------
   async function boot(){
-    db = FirebaseDB; userNs = FirebaseUser; assetsNs = FirebaseAssets;
+    db = FirebaseDB; userNs = FirebaseUser;
 
     var authedUser = await waitForAuth();
     if (!authedUser){
