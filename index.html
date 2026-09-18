@@ -428,7 +428,7 @@
 <!-- Upload chord sheet modal -->
 <div class="overlay" id="sheet-overlay">
   <div class="modal">
-    <h3>Upload chord sheet</h3>
+    <h3 id="sheet-modal-title">Upload chord sheet</h3>
     <div class="field-row">
       <div class="field" style="grid-column: span 2"><label>Title</label><input id="s-title" placeholder="Song title"></div>
       <div class="field"><label>Category</label>
@@ -448,16 +448,17 @@
 Amazing grace, how sweet the sound"></textarea>
     </div>
     <div class="modal-actions">
+      <button class="btn danger" id="btn-delete-sheet" style="display:none;margin-right:auto">Delete</button>
       <button class="btn ghost" id="btn-cancel-sheet">Cancel</button>
       <button class="btn gold" id="btn-save-sheet">Save sheet</button>
     </div>
   </div>
 </div>
 
-<!-- Add resource modal -->
+<!-- Add / edit resource modal -->
 <div class="overlay" id="resource-overlay">
   <div class="modal">
-    <h3>Add resource</h3>
+    <h3 id="resource-modal-title">Add resource</h3>
     <div class="field-row">
       <div class="field" style="grid-column: span 2"><label>Title</label><input id="r-title" placeholder="e.g. 5-minute vocal warm-up"></div>
       <div class="field"><label>Category</label>
@@ -465,9 +466,21 @@ Amazing grace, how sweet the sound"></textarea>
       </div>
     </div>
     <div class="field"><label>Description (optional)</label><input id="r-desc" placeholder="Short note about this resource"></div>
-    <div class="field"><label>Link URL</label><input id="r-link" placeholder="https://... (YouTube, Google Drive, Dropbox, etc.)"></div>
-    <div class="tiny-note">Paste a link to the file (e.g. a shared Google Drive/Dropbox link) or video. Direct file uploads aren't enabled for this hub yet.</div>
+    <div class="field">
+      <label>Type</label>
+      <div style="display:flex;gap:16px;font-size:13px;font-weight:600;padding-top:4px">
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="r-type" value="file" id="r-type-file" checked> Upload a file</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="r-type" value="link" id="r-type-link"> Link (e.g. YouTube)</label>
+      </div>
+    </div>
+    <div class="field" id="r-file-field">
+      <label>File (PDF, video, audio, image)</label>
+      <input type="file" id="r-file" accept=".pdf,application/pdf,video/*,audio/*,image/*">
+      <div class="tiny-note">Uploaded to Cloudinary. Editing an existing file resource keeps its current file unless you choose a new one.</div>
+    </div>
+    <div class="field" id="r-link-field" style="display:none"><label>Link URL</label><input id="r-link" placeholder="https://..."></div>
     <div class="modal-actions">
+      <button class="btn danger" id="btn-delete-resource" style="display:none;margin-right:auto">Delete</button>
       <button class="btn ghost" id="btn-cancel-resource">Cancel</button>
       <button class="btn gold" id="btn-save-resource">Save resource</button>
     </div>
@@ -495,6 +508,7 @@ import {
   getDoc, getDocs, onSnapshot, query, where, limit, documentId
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { firebaseConfig } from './firebase-config.js';
+import { cloudinaryConfig } from './cloudinary-config.js';
 
 (function(){
 
@@ -577,6 +591,17 @@ import { firebaseConfig } from './firebase-config.js';
     });
   }
 
+  async function uploadToCloudinary(file){
+    var url = 'https://api.cloudinary.com/v1_1/' + cloudinaryConfig.cloudName + '/auto/upload';
+    var form = new FormData();
+    form.append('file', file);
+    form.append('upload_preset', cloudinaryConfig.uploadPreset);
+    var res = await fetch(url, { method: 'POST', body: form });
+    var body = await res.json();
+    if (!res.ok) throw new Error((body.error && body.error.message) || 'Upload failed');
+    return { url: body.secure_url, contentType: file.type, sizeBytes: body.bytes };
+  }
+
   async function ensureUserProfile(user){
     try {
       var ref_ = doc(firestore, 'users', user.uid);
@@ -635,6 +660,8 @@ import { firebaseConfig } from './firebase-config.js';
   var activeSheetId = null;
   var monthCursor = startOfMonth(new Date());
   var editingSongId = null;
+  var editingSheetId = null;
+  var editingResourceId = null;
   var profileCache = {};
 
   function toast(msg){
@@ -820,10 +847,19 @@ import { firebaseConfig } from './firebase-config.js';
       var row = document.createElement('div');
       row.className = 'sheet-row';
       row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + '</span></div>';
+      var actions = document.createElement('div');
+      actions.style.display = 'flex'; actions.style.gap = '8px';
       var openBtn = document.createElement('button');
       openBtn.className = 'btn small'; openBtn.textContent = 'View & transpose';
       openBtn.onclick = function(){ openSheetViewer(s); };
-      row.appendChild(openBtn);
+      actions.appendChild(openBtn);
+      if (canEdit){
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
+        editBtn.onclick = function(){ openSheetModal(s); };
+        actions.appendChild(editBtn);
+      }
+      row.appendChild(actions);
       wrap.appendChild(row);
     });
   }
@@ -878,16 +914,21 @@ import { firebaseConfig } from './firebase-config.js';
   }
   function normKey(k){ return (k||'C').split(' ')[0].split('/')[0]; }
 
-  // upload modal
+  // upload / edit modal
   var sheetOverlay = document.getElementById('sheet-overlay');
-  document.getElementById('btn-add-sheet').addEventListener('click', function(){
-    document.getElementById('s-title').value = '';
-    document.getElementById('s-category').value = chordFolder;
+  function openSheetModal(sheet){
+    editingSheetId = sheet ? sheet.id : null;
+    document.getElementById('sheet-modal-title').textContent = sheet ? 'Edit chord sheet' : 'Upload chord sheet';
+    document.getElementById('btn-delete-sheet').style.display = sheet ? '' : 'none';
+    document.getElementById('s-title').value = sheet ? sheet.title : '';
+    document.getElementById('s-category').value = (sheet && sheet.category) || chordFolder;
     document.getElementById('s-key').innerHTML = KEYS.map(function(k){ return '<option>' + k + '</option>'; }).join('');
+    if (sheet) document.getElementById('s-key').value = sheet.originalKey;
     document.getElementById('s-file').value = '';
-    document.getElementById('s-body').value = '';
+    document.getElementById('s-body').value = sheet ? sheet.body : '';
     sheetOverlay.classList.add('active');
-  });
+  }
+  document.getElementById('btn-add-sheet').addEventListener('click', function(){ openSheetModal(null); });
   document.getElementById('btn-cancel-sheet').addEventListener('click', function(){ sheetOverlay.classList.remove('active'); });
   document.getElementById('s-file').addEventListener('change', function(e){
     var file = e.target.files[0]; if (!file) return;
@@ -902,10 +943,21 @@ import { firebaseConfig } from './firebase-config.js';
     var data = { title: title, category: document.getElementById('s-category').value, originalKey: document.getElementById('s-key').value, body: body, uploadedBy: myId || null, createdAt: Date.now() };
     try {
       if (!db) { toast('Not connected.'); return; }
-      await db.collection('chordsheets').add(data);
+      if (editingSheetId) await db.collection('chordsheets').doc(editingSheetId).set(data);
+      else await db.collection('chordsheets').add(data);
       sheetOverlay.classList.remove('active');
       toast('Chord sheet saved.');
     } catch(err){ toast('Could not save.'); }
+  });
+  document.getElementById('btn-delete-sheet').addEventListener('click', async function(){
+    if (!editingSheetId) return;
+    try {
+      await db.collection('chordsheets').doc(editingSheetId).delete();
+      sheetOverlay.classList.remove('active');
+      document.getElementById('chord-viewer').style.display = 'none';
+      renderSheetList();
+      toast('Chord sheet deleted.');
+    } catch(err){ toast('Could not delete.'); }
   });
 
   // ---------- availability ----------
@@ -976,7 +1028,8 @@ import { firebaseConfig } from './firebase-config.js';
         b.className = 'status-btn' + (current===pair[0] ? ' active' : '');
         b.dataset.s = pair[0];
         b.textContent = pair[1];
-        b.onclick = function(){ setAvailability(wid, pair[0]); };
+        b.title = current===pair[0] ? 'Click again to clear' : '';
+        b.onclick = function(){ setAvailability(wid, current===pair[0] ? null : pair[0]); };
         btns.appendChild(b);
       });
       wrap.appendChild(row);
@@ -987,7 +1040,12 @@ import { firebaseConfig } from './firebase-config.js';
     if (!db || !myId){ toast('Sign-in required to set availability.'); return; }
     var docId = wid + '_' + myId;
     try {
-      await db.collection('availability').doc(docId).set({ weekId: wid, userId: myId, status: status, updatedAt: Date.now() });
+      if (status === null){
+        await db.collection('availability').doc(docId).delete();
+        toast('Cleared.');
+      } else {
+        await db.collection('availability').doc(docId).set({ weekId: wid, userId: myId, status: status, updatedAt: Date.now() });
+      }
     } catch(err){ toast('Could not save your availability.'); }
   }
 
@@ -1078,38 +1136,87 @@ import { firebaseConfig } from './firebase-config.js';
             '<span class="res-cat-tag">' + esc(r.category) + '</span>' +
           '</div>' +
         '</div>';
+      var actions = document.createElement('div');
+      actions.style.display = 'flex'; actions.style.gap = '8px';
       var a = document.createElement('a');
       a.href = openHref || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer';
       a.className = 'btn small'; a.textContent = 'Open';
-      row.appendChild(a);
+      actions.appendChild(a);
+      if (canEdit){
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
+        editBtn.onclick = function(){ openResourceModal(r); };
+        actions.appendChild(editBtn);
+      }
+      row.appendChild(actions);
       wrap.appendChild(row);
     });
   }
 
   var resourceOverlay = document.getElementById('resource-overlay');
-  document.getElementById('btn-add-resource').addEventListener('click', function(){
-    document.getElementById('r-title').value = '';
-    document.getElementById('r-desc').value = '';
-    document.getElementById('r-category').value = 'Warm-up';
-    document.getElementById('r-link').value = '';
+  function setResourceTypeFields(isFile){
+    document.getElementById('r-type-file').checked = isFile;
+    document.getElementById('r-type-link').checked = !isFile;
+    document.getElementById('r-file-field').style.display = isFile ? '' : 'none';
+    document.getElementById('r-link-field').style.display = isFile ? 'none' : '';
+  }
+  function openResourceModal(resource){
+    editingResourceId = resource ? resource.id : null;
+    document.getElementById('resource-modal-title').textContent = resource ? 'Edit resource' : 'Add resource';
+    document.getElementById('btn-delete-resource').style.display = resource ? '' : 'none';
+    document.getElementById('r-title').value = resource ? resource.title : '';
+    document.getElementById('r-desc').value = (resource && resource.description) || '';
+    document.getElementById('r-category').value = (resource && resource.category) || 'Warm-up';
+    document.getElementById('r-file').value = '';
+    document.getElementById('r-link').value = (resource && resource.linkUrl) || '';
+    setResourceTypeFields(!resource || resource.type !== 'link');
     resourceOverlay.classList.add('active');
-  });
+  }
+  document.getElementById('btn-add-resource').addEventListener('click', function(){ openResourceModal(null); });
   document.getElementById('btn-cancel-resource').addEventListener('click', function(){ resourceOverlay.classList.remove('active'); });
+  document.querySelectorAll('input[name="r-type"]').forEach(function(r){
+    r.addEventListener('change', function(){ setResourceTypeFields(document.getElementById('r-type-file').checked); });
+  });
   document.getElementById('btn-save-resource').addEventListener('click', async function(){
     var title = document.getElementById('r-title').value.trim();
     if (!title){ toast('Add a title.'); return; }
     if (!db){ toast('Not connected.'); return; }
-    var link = document.getElementById('r-link').value.trim();
-    if (!link){ toast('Add a link URL.'); return; }
+    var isFile = document.getElementById('r-type-file').checked;
+    var existing = editingResourceId ? resources.find(function(r){ return r.id === editingResourceId; }) : null;
     var data = {
       title: title, description: document.getElementById('r-desc').value.trim(), category: document.getElementById('r-category').value,
-      uploadedBy: myId || null, createdAt: Date.now(), type: 'link', linkUrl: link
+      uploadedBy: myId || null, createdAt: (existing && existing.createdAt) || Date.now()
     };
     try {
-      await db.collection('resources').add(data);
+      if (isFile){
+        var file = document.getElementById('r-file').files[0];
+        if (!file){
+          if (existing && existing.type === 'file'){
+            data.type = 'file'; data.assetUrl = existing.assetUrl; data.contentType = existing.contentType; data.sizeBytes = existing.sizeBytes;
+          } else { toast('Choose a file to upload.'); return; }
+        } else {
+          toast('Uploading...');
+          var up = await uploadToCloudinary(file);
+          data.type = 'file'; data.assetUrl = up.url; data.contentType = up.contentType; data.sizeBytes = up.sizeBytes;
+        }
+      } else {
+        var link = document.getElementById('r-link').value.trim();
+        if (!link){ toast('Add a link URL.'); return; }
+        data.type = 'link'; data.linkUrl = link;
+      }
+      if (editingResourceId) await db.collection('resources').doc(editingResourceId).set(data);
+      else await db.collection('resources').add(data);
       resourceOverlay.classList.remove('active');
-      toast('Resource added.');
-    } catch(err){ toast('Could not save (' + (err.code||'error') + ').'); }
+      toast('Resource saved.');
+    } catch(err){ toast('Could not save (' + (err.code||err.message||'error') + ').'); }
+  });
+  document.getElementById('btn-delete-resource').addEventListener('click', async function(){
+    if (!editingResourceId) return;
+    try {
+      await db.collection('resources').doc(editingResourceId).delete();
+      resourceOverlay.classList.remove('active');
+      toast('Resource deleted.');
+    } catch(err){ toast('Could not delete.'); }
   });
 
   // ---------- feedback ----------
