@@ -620,6 +620,11 @@ import { cloudinaryConfig } from './cloudinary-config.js';
             return getDoc(ref_).then(function(snap){
               return { id: snap.id, exists: snap.exists(), data: function(){ return snap.data(); } };
             });
+          },
+          onSnapshot: function(cb, errCb){
+            return onSnapshot(ref_, function(snap){
+              cb({ id: snap.id, exists: snap.exists(), data: function(){ return snap.data(); } });
+            }, errCb);
           }
         };
       },
