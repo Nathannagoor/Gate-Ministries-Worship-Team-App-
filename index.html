@@ -300,7 +300,7 @@
         <h2 class="display">Practice Arrangements</h2>
         <p>The songs for the selected service &mdash; keys, tempos and instrument notes. Add a song to build that week&rsquo;s set.</p>
       </div>
-      <button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="btn-share-arr">Share summary</button><button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button></div>
     </div>
     <div class="filterbar" id="song-filters">
       <button class="chip active" data-filter="all">All</button>
@@ -519,6 +519,15 @@
       <button class="btn ghost" id="btn-cancel-libsong">Cancel</button>
       <button class="btn gold" id="btn-save-libsong">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- Share summary modal -->
+<div class="overlay" id="share-overlay">
+  <div class="modal" style="max-width:720px">
+    <h3>Share summary</h3>
+    <div id="share-body"><p class="tiny-note">Building&hellip;</p></div>
+    <div class="modal-actions"><button class="btn ghost" id="btn-close-share">Close</button></div>
   </div>
 </div>
 
@@ -1313,7 +1322,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
     el.innerHTML =
       '<div class="panel-head"><div><h2 class="display">' + esc(fmtSvcLong(s.date)) + ' &middot; ' + esc(s.time) + (s.label?' &middot; '+esc(s.label):'') + '</h2>' +
-      '<p>Auto-fill prefers whoever’s gone longest without serving and skips anyone who said they can’t make it.' + (canEdit ? ' <a href="#" id="lnk-setup" style="color:var(--gold-ink);font-weight:700">Edit positions in Setup</a>' : '') + '</p></div></div>' +
+      '<p>Auto-fill prefers whoever’s gone longest without serving and skips anyone who said they can’t make it.' + (canEdit ? ' <a href="#" id="lnk-setup" style="color:var(--gold-ink);font-weight:700">Edit positions in Setup</a>' : '') + '</p></div><button class="btn ghost" id="btn-share-roster">Share summary</button></div>' +
       '<div class="stat-bank">' +
         '<div><b>' + confirmed + '</b><span>confirmed</span></div>' +
         '<div><b>' + declined + '</b><span>said no</span></div>' +
@@ -1324,6 +1333,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       '<div class="slot-sheet">' + rows + '</div>' +
       (canEdit ? '<div class="field" style="margin-top:16px"><label>Notes for the team</label><textarea id="svc-notes" style="min-height:70px;font-family:inherit">'+esc(s.notes||'')+'</textarea></div>' : (s.notes? '<div class="field" style="margin-top:16px"><label>Notes</label><p style="margin:0">'+esc(s.notes)+'</p></div>' : ''));
 
+    document.getElementById('btn-share-roster').onclick = openShareModal;
     var lnk = document.getElementById('lnk-setup');
     if (lnk) lnk.onclick = function(e){ e.preventDefault(); gotoTab('setup'); };
     if (canEdit){
@@ -1396,6 +1406,183 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     } catch(err){ toast('Could not add the position.'); }
   });
 
+  // ---------- rota: share summary (PNG / PDF / WhatsApp) ----------
+  function normalizePhone(raw){
+    var d = String(raw||'').replace(/[^0-9]/g,'');
+    if (d.indexOf('00') === 0) d = d.slice(2);
+    else if (d.charAt(0) === '0') d = '27' + d.slice(1);
+    return d;
+  }
+  function rosterPeopleFor(s){
+    var byPerson = {};
+    rosterSlots().forEach(function(x){
+      var mid = (s.assign||{})[x.key]; if (!mid) return;
+      (byPerson[mid] = byPerson[mid] || []).push(x.count>1 ? x.name+' '+(x.idx+1) : x.name);
+    });
+    return Object.keys(byPerson).map(function(id){
+      var u = teamUsers.find(function(m){ return m.id === id; }) || {};
+      return { id: id, name: u.name || 'Unassigned', phone: u.phone || '', positions: uniq(byPerson[id]) };
+    }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+  }
+  function personalText(person, s){
+    return 'Hi ' + (person.name||'').split(' ')[0] + ', you’re on the team for ' + fmtSvcLong(s.date) + ' · ' + s.time + (s.label ? ' (' + s.label + ')' : '') +
+      ' — ' + person.positions.join(', ') + '.' + (config.rehearsal ? ' Rehearsal: ' + config.rehearsal + '.' : '') + ' Thanks for serving!';
+  }
+  function personalMessagesHtml(s){
+    var people = rosterPeopleFor(s);
+    if (!people.length) return '<p class="tiny-note" style="margin:0">Nobody is on the roster for this service yet.</p>';
+    return people.map(function(pr){
+      var link = pr.phone ? '<a class="btn small" target="_blank" rel="noopener noreferrer" href="https://wa.me/' + normalizePhone(pr.phone) + '?text=' + encodeURIComponent(personalText(pr, s)) + '">WhatsApp</a>' : '<span class="tiny-note" style="margin:0">no number saved</span>';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><div style="flex:1;min-width:0"><b>' + esc(pr.name) + '</b><div style="font-size:12px;color:var(--ink-soft)">' + esc(pr.positions.join(', ')) + '</div></div>' + link + '</div>';
+    }).join('');
+  }
+
+  async function buildSummaryCanvas(){
+    var s = curService(); if (!s) return null;
+    try { await Promise.all([document.fonts.load('700 20px Inter'), document.fonts.load('400 20px Inter'), document.fonts.load('40px "Bebas Neue"')]); } catch(e){}
+    var W = 1080, P = 52, songsList = arrSongs(s.id);
+    var scratch = document.createElement('canvas').getContext('2d');
+    function wrap(ctx, text, maxW){
+      var words = String(text||'').split(/\s+/), lines = [], line = '';
+      words.forEach(function(w){
+        var t = line ? line + ' ' + w : w;
+        if (ctx.measureText(t).width > maxW && line){ lines.push(line); line = w; } else line = t;
+      });
+      if (line) lines.push(line);
+      return lines.length ? lines : [''];
+    }
+    function run(ctx, draw){
+      var y = 0;
+      function font(f){ ctx.font = f; }
+      function text(t, x, yy, f, color, align){ font(f); if (draw){ ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.fillText(t, x, yy); } }
+      if (draw){
+        var g = ctx.createLinearGradient(0,0,0,210); g.addColorStop(0,'#141414'); g.addColorStop(1,'#0a0a0a');
+        ctx.fillStyle = g; ctx.fillRect(0,0,W,210);
+      }
+      text(((config.churchName || 'GATE Ministries Sandton') + '').toUpperCase(), P, 62, '700 22px Inter, sans-serif', '#9aa0b8');
+      text('WORSHIP TEAM', P, 128, '64px "Bebas Neue", Inter, sans-serif', '#ffffff');
+      text(fmtSvcLong(s.date) + '  ·  ' + s.time + (s.label ? '  ·  ' + s.label : ''), P, 180, '600 26px Inter, sans-serif', '#dfe3f3');
+      y = 210 + 46;
+      function section(title){
+        text(title, P, y, '38px "Bebas Neue", Inter, sans-serif', '#33417f');
+        if (draw){ ctx.fillStyle = '#d6d3ca'; ctx.fillRect(P, y + 12, W - 2*P, 2); }
+        y += 46;
+      }
+      section('THE TEAM');
+      rosterSlots().forEach(function(x){
+        var mid = (s.assign||{})[x.key];
+        var label = x.count>1 ? x.name + ' ' + (x.idx+1) : x.name;
+        text(label, P, y, '700 26px Inter, sans-serif', '#5c5f66');
+        font('600 28px Inter, sans-serif');
+        var lines = wrap(ctx, mid ? memberName(mid) : '— unfilled —', W - 2*P - 300);
+        lines.forEach(function(l, i){ text(l, P + 300, y + i*34, mid ? '600 28px Inter, sans-serif' : 'italic 26px Inter, sans-serif', mid ? '#1a1a1a' : '#b1493f'); });
+        y += Math.max(1, lines.length) * 34 + 10;
+      });
+      y += 26;
+      section('SET LIST');
+      if (!songsList.length){
+        text('No songs added yet.', P, y, 'italic 26px Inter, sans-serif', '#5c5f66'); y += 44;
+      }
+      songsList.forEach(function(sg, i){
+        var lc = leaderColor(sg.leaderName);
+        if (draw){ ctx.fillStyle = '#33417f'; ctx.beginPath(); ctx.arc(P + 22, y - 10, 22, 0, Math.PI*2); ctx.fill(); }
+        text(String(i+1), P + 22, y - 1, '700 24px Inter, sans-serif', '#ffffff', 'center');
+        text(sg.title || 'Untitled', P + 62, y, '700 34px Inter, sans-serif', '#1a1a1a');
+        y += 38;
+        var meta = ['KEY ' + (sg.key || '—'), sg.tempo || '', sg.timeSig || '', 'Lead: ' + (sg.leaderName || '—')].filter(Boolean).join('   ·   ');
+        if (draw && lc){ ctx.fillStyle = lc; ctx.beginPath(); ctx.arc(P + 70, y - 8, 7, 0, Math.PI*2); ctx.fill(); }
+        text(meta, P + (lc ? 86 : 62), y, '600 24px Inter, sans-serif', lc || '#5c5f66');
+        y += 34;
+        if (sg.bvs){ font('400 22px Inter, sans-serif'); wrap(ctx, 'BVs: ' + sg.bvs, W - 2*P - 62).forEach(function(l){ text(l, P + 62, y, '400 22px Inter, sans-serif', '#5c5f66'); y += 30; }); }
+        [['Keys', sg.keys], ['Pads', sg.pads], ['Acoustic', sg.acoustic1], ['Electric 1', sg.electric1], ['Electric 2', sg.electric2]].forEach(function(row){
+          if (!row[1]) return;
+          text(row[0], P + 62, y, '700 21px Inter, sans-serif', '#1a1a1a');
+          font('400 21px Inter, sans-serif');
+          var ls = wrap(ctx, row[1], W - 2*P - 62 - 150);
+          ls.forEach(function(l, k){ text(l, P + 62 + 150, y + k*28, '400 21px Inter, sans-serif', '#4a4d55'); });
+          y += ls.length * 28 + 4;
+        });
+        y += 22;
+        if (draw && i < songsList.length-1){ ctx.fillStyle = '#e2e0da'; ctx.fillRect(P + 62, y - 12, W - 2*P - 62, 1); }
+        y += 6;
+      });
+      var foot = [];
+      if (config.rehearsal) foot.push('Rehearsal: ' + config.rehearsal);
+      if (s.notes) foot.push(s.notes);
+      if (foot.length){
+        y += 10; section('NOTES');
+        foot.forEach(function(t){ font('400 24px Inter, sans-serif'); wrap(ctx, t, W - 2*P).forEach(function(l){ text(l, P, y, '400 24px Inter, sans-serif', '#1a1a1a'); y += 32; }); y += 6; });
+      }
+      return y;
+    }
+    var H = run(scratch, false) + P;
+    var canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#f3f1ea'; ctx.fillRect(0, 0, W, H);
+    run(ctx, true);
+    return canvas;
+  }
+
+  function buildPdfFromCanvas(canvas){
+    var jpegB64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+    var bin = atob(jpegB64), img = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++) img[i] = bin.charCodeAt(i);
+    var w = canvas.width, h = canvas.height, pw = 595, ph = Math.round(595 * h / w);
+    var enc = new TextEncoder(), chunks = [], offsets = [], pos = 0;
+    function push(u8){ chunks.push(u8); pos += u8.length; }
+    function str(t){ push(enc.encode(t)); }
+    str('%PDF-1.4\n');
+    offsets[1] = pos; str('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+    offsets[2] = pos; str('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+    offsets[3] = pos; str('3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n');
+    offsets[4] = pos; str('4 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + img.length + ' >>\nstream\n'); push(img); str('\nendstream\nendobj\n');
+    var content = 'q ' + pw + ' 0 0 ' + ph + ' 0 0 cm /Im0 Do Q';
+    offsets[5] = pos; str('5 0 obj\n<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream\nendobj\n');
+    var xref = pos;
+    str('xref\n0 6\n0000000000 65535 f \n');
+    for (var n=1;n<=5;n++) str(String(offsets[n]).padStart(10,'0') + ' 00000 n \n');
+    str('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+    return new Blob(chunks, {type:'application/pdf'});
+  }
+
+  function downloadBlob(blob, name){
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+  }
+  document.getElementById('btn-close-share').addEventListener('click', function(){ document.getElementById('share-overlay').classList.remove('active'); });
+  document.getElementById('btn-share-arr').addEventListener('click', function(){ openShareModal(); });
+
+  async function openShareModal(){
+    var s = curService();
+    if (!s){ toast('Pick a service first.'); return; }
+    var body = document.getElementById('share-body');
+    body.innerHTML = '<p class="tiny-note">Building&hellip;</p>';
+    document.getElementById('share-overlay').classList.add('active');
+    var canvas = await buildSummaryCanvas();
+    var png = await new Promise(function(res){ canvas.toBlob(res, 'image/png'); });
+    var base = 'worship-' + s.date;
+    var pngFile = new File([png], base + '.png', {type:'image/png'});
+    var canShare = !!(navigator.canShare && navigator.canShare({ files: [pngFile] }));
+    var msg = buildRosterMessage();
+    body.innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' +
+        (canShare ? '<button class="btn gold small" id="sh-share">Share (WhatsApp, etc.)</button>' : '') +
+        '<button class="btn ' + (canShare ? 'ghost' : 'gold') + ' small" id="sh-png">Download PNG</button>' +
+        '<button class="btn ghost small" id="sh-pdf">Download PDF</button>' +
+        '<button class="btn ghost small" id="sh-wa">WhatsApp text</button>' +
+      '</div>' +
+      '<img alt="Summary preview" src="' + canvas.toDataURL('image/png') + '" style="width:100%;border:1px solid var(--line);border-radius:10px;margin-bottom:16px">' +
+      '<b style="display:block;font-size:15px;margin-bottom:4px">Message each person</b>' + personalMessagesHtml(s) +
+      (canShare ? '' : '<p class="tiny-note" style="margin-top:12px">On a phone, &ldquo;Share&rdquo; sends the image straight to WhatsApp. On a computer, download it and attach it in WhatsApp Web.</p>');
+    var shBtn = document.getElementById('sh-share');
+    if (shBtn) shBtn.onclick = function(){ navigator.share({ files: [pngFile], title: 'Worship team — ' + fmtSvc(s.date), text: msg }).catch(function(){}); };
+    document.getElementById('sh-png').onclick = function(){ downloadBlob(png, base + '.png'); };
+    document.getElementById('sh-pdf').onclick = function(){ downloadBlob(buildPdfFromCanvas(canvas), base + '.pdf'); };
+    document.getElementById('sh-wa').onclick = function(){ window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener'); };
+  }
+
   // ---------- rota: send ----------
   function buildRosterMessage(){
     var s = curService(); if (!s) return '';
@@ -1413,7 +1600,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var setSongs = arrSongs(s.id);
     if (setSongs.length){
       L.push(''); L.push('SET LIST');
-      setSongs.forEach(function(sg, i){ L.push((i+1)+'. '+sg.title+(sg.key?' \u2014 '+sg.key:'')+(sg.leaderName && sg.leaderName.toLowerCase()!=='all' ? ' ('+sg.leaderName+')' : '')); });
+      setSongs.forEach(function(sg, i){ L.push((i+1)+'. '+sg.title+(sg.key?' \u2014 '+sg.key:'')+(sg.tempo?' \u00b7 '+sg.tempo:'')+(sg.leaderName && sg.leaderName.toLowerCase()!=='all' ? ' ('+sg.leaderName+')' : '')); });
     }
     if (config.rehearsal){ L.push(''); L.push('Rehearsal: '+config.rehearsal); }
     if (s.notes){ L.push(''); L.push(s.notes); }
@@ -1448,8 +1635,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         '<button class="btn ghost small" id="btn-wa-msg">Open in WhatsApp</button>' +
         '<button class="btn ghost small" id="btn-csv-out">Download CSV</button>' +
         '<button class="btn ghost small" id="btn-print-out">Print</button>' +
+        '<button class="btn ghost small" id="btn-share-send">Share image / PDF</button>' +
       '</div>' +
       '<pre class="chord-body">' + esc(msg) + '</pre>' +
+      '<div class="card-block" style="margin-top:18px"><b style="display:block;font-size:15px;margin-bottom:8px">Message each person</b>' + personalMessagesHtml(s) + '</div>' +
       '<p class="tiny-note" style="margin-top:12px">' + (withPhones ? withPhones + ' of the people rostered have a WhatsApp number saved.' : 'Add WhatsApp numbers on the Team tab to reach people individually.') + '</p>';
 
     document.getElementById('btn-copy-msg').onclick = async function(){
@@ -1458,6 +1647,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     };
     document.getElementById('btn-wa-msg').onclick = function(){ window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener'); };
     document.getElementById('btn-print-out').onclick = function(){ window.print(); };
+    document.getElementById('btn-share-send').onclick = openShareModal;
     document.getElementById('btn-csv-out').onclick = function(){ downloadRosterCSV(s); };
   }
 
@@ -1475,7 +1665,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var counts = servedCount(), hist = servedBefore(null);
     var mem = teamUsers.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
     var rows = mem.map(function(m){
-      var waLink = m.phone ? ' &middot; <a href="https://wa.me/'+m.phone.replace(/[^0-9]/g,'')+'" target="_blank" rel="noopener noreferrer" style="color:var(--worship);font-weight:700">WhatsApp</a>' : '';
+      var waLink = m.phone ? ' &middot; <a href="https://wa.me/'+normalizePhone(m.phone)+'" target="_blank" rel="noopener noreferrer" style="color:var(--worship);font-weight:700">WhatsApp</a>' : '';
       return '<div class="sheet-row">' +
         '<div class="info"><b>' + esc(m.name||'Unnamed') + (m.inactive?' <span style="color:var(--ink-soft);font-weight:400;font-size:12px">— inactive</span>':'') + (m.isTeamLead?' <span style="color:var(--gold-ink);font-weight:700;font-size:11px">&middot; Team lead</span>':'') + '</b>' +
         '<span>' + ((m.roles||[]).length ? esc(uniq((m.roles||[]).map(posName)).filter(Boolean).join(' \u00b7 ')) : '<span style="color:var(--no)">no positions set</span>') + '</span>' +
