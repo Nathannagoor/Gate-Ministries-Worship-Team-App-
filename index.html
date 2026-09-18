@@ -592,6 +592,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     });
   }
 
+  var CLOUDINARY_BLOCKED_ARCHIVE_FORMATS = ['zip','rar','7z','gz','tgz','bz2','bzip'];
   async function uploadToCloudinary(file){
     var url = 'https://api.cloudinary.com/v1_1/' + cloudinaryConfig.cloudName + '/auto/upload';
     var form = new FormData();
@@ -600,7 +601,17 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var res = await fetch(url, { method: 'POST', body: form });
     var body = await res.json();
     if (!res.ok) throw new Error((body.error && body.error.message) || 'Upload failed');
-    return { url: body.secure_url, contentType: file.type, sizeBytes: body.bytes };
+    var format = (body.format || '').toLowerCase();
+    if (CLOUDINARY_BLOCKED_ARCHIVE_FORMATS.indexOf(format) >= 0){
+      throw new Error('Archive files (.' + format + ') can\'t be delivered on the free plan. Try a PDF, image, or a link instead.');
+    }
+    var viewUrl = body.secure_url;
+    if (format === 'pdf'){
+      // Cloudinary's free plan blocks direct delivery of the original PDF bytes,
+      // but a rendered-page transformation is still allowed.
+      viewUrl = viewUrl.replace('/upload/', '/upload/f_jpg,pg_1,q_auto/');
+    }
+    return { url: viewUrl, contentType: file.type, sizeBytes: body.bytes };
   }
 
   async function ensureUserProfile(user){
@@ -627,8 +638,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   }
 
   document.getElementById('btn-google-signin').addEventListener('click', async function(){
-    try { await signInWithPopup(auth, googleProvider); location.reload(); }
-    catch(e){ toast('Sign-in failed. Please try again.'); }
+    try {
+      var result = await signInWithPopup(auth, googleProvider);
+      await afterSignedIn(result.user);
+    } catch(e){ toast('Sign-in failed. Please try again.'); }
   });
 
   // ---------- constants ----------
@@ -1390,6 +1403,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       document.getElementById('auth-overlay').classList.add('active');
       return;
     }
+    await afterSignedIn(authedUser);
+  }
+
+  async function afterSignedIn(authedUser){
     document.getElementById('auth-overlay').classList.remove('active');
     await ensureUserProfile(authedUser);
     renderAccountBox(authedUser);
