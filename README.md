@@ -1,8 +1,8 @@
 # GATE Sandton Worship Team Hub
 
 A static site (plain HTML/CSS/JS) for the worship team: song arrangements,
-a transposing chord library, availability sign-ups, resources, and
-feedback/suggestions. Backed by Firebase (Firestore + Auth) for data/sign-in
+a roster/rota with auto-fill, availability per service, set lists, a song
+library, WhatsApp-ready team messages, resources, and feedback/suggestions. Backed by Firebase (Firestore + Auth) for data/sign-in
 and Cloudinary for file uploads (PDFs, video, audio, images, or any other
 file type), so everything syncs
 live between everyone who opens the site.
@@ -55,8 +55,8 @@ firebase deploy --only firestore:rules
 ## 5. Make yourself a team lead
 
 The first person to sign in is a regular member (`isTeamLead: false`). To
-promote someone (e.g. yourself) to team lead, so they can edit songs, chord
-sheets, resources, and approve/pass song suggestions:
+promote someone (e.g. yourself) to team lead, so they can edit songs, rosters, set lists,
+resources, and approve/pass song suggestions:
 
 1. Sign in to the site once with the Google account you want promoted.
 2. In the Firebase console, go to **Firestore Database > users**, open the
@@ -91,15 +91,16 @@ is allowed by default).
 
 | Collection      | Written by                          | Notes |
 |-----------------|--------------------------------------|-------|
-| `songs`         | team leads only                      | practice arrangements |
-| `chordsheets`   | any signed-in member (create), team leads (edit/delete) | any file uploaded via Cloudinary, opened with a plain "Open" link |
+| `songs`         | team leads only                      | practice arrangements (Arrangements tab) |
+| `songLibrary`   | team leads only                      | title, default key, CCLI, per-vocalist keys; feeds set lists |
+| `config/main`   | team leads only                      | church name, rehearsal time, roster positions (name + slot count), song repeat window |
+| `services`      | team leads (all fields); any member (their own `avail` answers only) | a dated/named service or special event: roster `assign`, `avail`, `set` list, `notes` |
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
-| `availability`  | each user, own doc only (`{weekId}_{uid}`) | Sunday-by-Sunday status; clicking the active status again clears it |
 | `feedback`      | each user, own doc only              | set feedback per Sunday |
 | `suggestions`   | each user (create own), team leads (update status) | song suggestions |
-| `users`         | each user (own profile), team leads (can set `isTeamLead`) | `{ name, email, isTeamLead }` |
+| `users`         | each user (own profile), team leads (anyone) | `{ name, email, phone, roles, inactive, isTeamLead }` — this is the team roster; people appear once they sign in |
 
-Editing/deleting a `resources` or `chordsheets` doc only removes the
+Editing/deleting a `resources` doc only removes the
 Firestore record — for file resources, the underlying file stays in your
 Cloudinary account (deleting it there requires a signed API call, which
 needs a backend we don't have). Not a problem in practice for a small
@@ -112,5 +113,3 @@ team's free-tier usage.
   with a small Firebase-backed shim inside `index.html` that mimics the
   same `db` / `userNs` interface, so the rest of the script didn't need to
   change.
-- Chord sheet files are read as plain text in the browser and stored as
-  text in Firestore — same as the original.

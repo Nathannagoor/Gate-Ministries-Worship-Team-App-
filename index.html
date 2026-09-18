@@ -194,6 +194,26 @@
   .pill.maybe { background: var(--maybe-soft); color: var(--maybe); }
   .pill.unavailable { background: var(--no-soft); color: var(--no); }
   .pill.none { background: transparent; color: var(--line); }
+  table.team-grid td.c, table.team-grid th.c { text-align: center; }
+  .av { border: 1.5px solid var(--line); background: var(--card); border-radius: 6px; width: 32px; height: 28px; cursor: pointer; font-size: 13px; color: var(--ink-soft); }
+  .av.yes { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); font-weight: 800; }
+  .av.no { background: var(--no-soft); border-color: var(--no); color: var(--no); font-weight: 800; }
+  .av:disabled { cursor: default; opacity: .55; }
+
+  /* Roster slots */
+  .slot-sheet { border: 1px solid var(--line); border-radius: 10px; background: var(--card); overflow: hidden; }
+  .slot { display: grid; grid-template-columns: 140px 1fr auto; gap: 14px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); }
+  .slot:first-child { border-top: none; }
+  .slot .pos { font-weight: 800; font-size: 13.5px; color: var(--ink-soft); }
+  .slot .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .slot .who select { max-width: 220px; padding: 7px 9px; border-radius: 7px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); }
+  .slot.gap { background: var(--no-soft); }
+  .slot.gap .pos { color: var(--no); }
+  .slot .rest { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+  @media (max-width: 760px) { .slot { grid-template-columns: 1fr; gap: 6px; } }
+  .stat-bank { display: flex; gap: 22px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat-bank b { display: block; font-family: 'Bebas Neue', sans-serif; font-size: 24px; }
+  .stat-bank span { font-size: 12px; color: var(--ink-soft); }
 
   /* Modal */
   .overlay { position: fixed; inset: 0; background: rgba(10,15,30,.55); display: none; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 50; }
@@ -250,16 +270,21 @@
     <div>
       <div class="church-name">GATE MINISTRIES SANDTON</div>
       <h1 class="brand-title display">WORSHIP TEAM HUB</h1>
-      <div class="brand-sub">Arrangements &middot; Chord library &middot; Availability</div>
+      <div class="brand-sub">Arrangements &middot; Roster &middot; Set lists &middot; Availability</div>
     </div>
     <div id="account-box" style="margin-left:auto; display:flex; align-items:center; gap:10px;"></div>
   </div>
   <nav class="tabs">
     <button class="tab-btn active" data-view="arrangements">Arrangements</button>
-    <button class="tab-btn" data-view="chords">Chord Library</button>
+    <button class="tab-btn" data-view="roster">Roster</button>
     <button class="tab-btn" data-view="availability">Availability</button>
+    <button class="tab-btn" data-view="setlist">Set List</button>
+    <button class="tab-btn" data-view="send">Send</button>
+    <button class="tab-btn" data-view="team">Team</button>
+    <button class="tab-btn" data-view="songlibrary">Song Library</button>
     <button class="tab-btn" data-view="resources">Resources</button>
     <button class="tab-btn" data-view="feedback">Feedback &amp; Suggestions</button>
+    <button class="tab-btn" data-view="setup">Setup</button>
   </nav>
   <div style="padding:10px 0 14px;">
     <input type="search" id="global-search" placeholder="Search songs or resources..." style="width:100%;max-width:320px;padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;font-size:13px;">
@@ -287,67 +312,42 @@
     <div id="leader-overview"></div>
   </section>
 
-  <!-- CHORD LIBRARY -->
-  <section id="view-chords" class="view">
-    <div class="panel-head">
-      <div>
-        <h2 class="display">Chord Library</h2>
-        <p>Upload a chord sheet once, organized by key.</p>
-      </div>
-      <button class="btn gold" id="btn-add-sheet">+ Upload chord sheet</button>
-    </div>
-    <div class="folder-tabs" id="chord-folders">
-      <button class="folder-tab active" data-cat="Praise"><span class="dot" style="background:var(--praise)"></span>Praise</button>
-      <button class="folder-tab" data-cat="Worship"><span class="dot" style="background:var(--worship)"></span>Worship</button>
-    </div>
-    <div class="song-grid" id="key-folder-grid"></div>
-    <div id="sheet-list-wrap" style="display:none">
-      <button class="btn ghost small" id="btn-back-to-keys" style="margin-bottom:14px;">&larr; Back to keys</button>
-      <div class="display" id="sheet-list-title" style="font-size:20px;margin-bottom:10px"></div>
-      <div class="sheet-list" id="sheet-list"></div>
-    </div>
+  <!-- ROSTER -->
+  <section id="view-roster" class="view">
+    <div id="service-switcher-roster"></div>
+    <div id="roster-body"></div>
+  </section>
 
-    <div id="chord-viewer" style="display:none; margin-top:22px;">
-      <button class="btn ghost small" id="btn-back-to-sheets" style="margin-bottom:14px;">&larr; Back to library</button>
-      <div class="chord-viewer-bar">
-        <div>
-          <b id="viewer-title" style="font-size:16px;"></b>
-          <div style="font-size:12px;color:var(--ink-soft)" id="viewer-sub"></div>
-        </div>
-        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-          <label for="viewer-key" style="font-size:12.5px;font-weight:700;color:var(--ink-soft)">Show in key</label>
-          <select id="viewer-key"></select>
-        </div>
-      </div>
-      <pre class="chord-body" id="viewer-body"></pre>
-    </div>
+  <!-- SET LIST -->
+  <section id="view-setlist" class="view">
+    <div id="service-switcher-setlist"></div>
+    <div id="setlist-body"></div>
+  </section>
+
+  <!-- SEND -->
+  <section id="view-send" class="view">
+    <div id="service-switcher-send"></div>
+    <div id="send-body"></div>
+  </section>
+
+  <!-- TEAM -->
+  <section id="view-team" class="view">
+    <div id="team-body"></div>
+  </section>
+
+  <!-- SONG LIBRARY -->
+  <section id="view-songlibrary" class="view">
+    <div id="songlibrary-body"></div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="view-setup" class="view">
+    <div id="setup-body"></div>
   </section>
 
   <!-- AVAILABILITY -->
   <section id="view-availability" class="view">
-    <div class="panel-head">
-      <div>
-        <h2 class="display">Availability</h2>
-        <p>Mark the Sundays you can serve. The team lead sees everyone's status.</p>
-      </div>
-    </div>
-    <div class="avail-toolbar">
-      <button class="btn ghost small" id="month-prev">&larr;</button>
-      <div class="month-label display" id="month-label" style="font-size:20px;"></div>
-      <button class="btn ghost small" id="month-next">&rarr;</button>
-    </div>
-    <div class="avail-columns">
-      <div class="card-block">
-        <h3>My availability</h3>
-        <p class="hint" id="my-name-hint">Loading&hellip;</p>
-        <div id="my-weeks"></div>
-      </div>
-      <div class="card-block">
-        <h3>Team overview</h3>
-        <p class="hint">Everyone who has set a status this month.</p>
-        <div style="overflow-x:auto"><table class="team-grid" id="team-grid"></table></div>
-      </div>
-    </div>
+    <div id="availability-body"></div>
   </section>
 
   <!-- RESOURCES -->
@@ -430,32 +430,6 @@
   </div>
 </div>
 
-<!-- Upload chord sheet modal -->
-<div class="overlay" id="sheet-overlay">
-  <div class="modal">
-    <h3 id="sheet-modal-title">Upload chord sheet</h3>
-    <div class="field-row">
-      <div class="field" style="grid-column: span 2"><label>Title</label><input id="s-title" placeholder="Song title"></div>
-      <div class="field"><label>Category</label>
-        <select id="s-category"><option>Praise</option><option>Worship</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Original key</label>
-      <select id="s-key"></select>
-    </div>
-    <div class="field" id="s-pdf-field">
-      <label>File</label>
-      <input type="file" id="s-pdf-file">
-      <div class="tiny-note">Uploaded to Cloudinary. Editing an existing sheet keeps its current file unless you choose a new one.</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn danger" id="btn-delete-sheet" style="display:none;margin-right:auto">Delete</button>
-      <button class="btn ghost" id="btn-cancel-sheet">Cancel</button>
-      <button class="btn gold" id="btn-save-sheet">Save sheet</button>
-    </div>
-  </div>
-</div>
-
 <!-- Add / edit resource modal -->
 <div class="overlay" id="resource-overlay">
   <div class="modal">
@@ -484,6 +458,71 @@
       <button class="btn danger" id="btn-delete-resource" style="display:none;margin-right:auto">Delete</button>
       <button class="btn ghost" id="btn-cancel-resource">Cancel</button>
       <button class="btn gold" id="btn-save-resource">Save resource</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / edit service modal -->
+<div class="overlay" id="service-overlay">
+  <div class="modal">
+    <h3 id="service-modal-title">Add service</h3>
+    <div class="field-row" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Date</label><input type="date" id="sv-date"></div>
+      <div class="field"><label>Time</label><input type="time" id="sv-time" value="09:00"></div>
+    </div>
+    <div class="field"><label>Label (optional)</label><input id="sv-label" placeholder="Morning service"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btn-delete-service" style="display:none;margin-right:auto">Delete</button>
+      <button class="btn ghost" id="btn-cancel-service">Cancel</button>
+      <button class="btn gold" id="btn-save-service">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit team member modal -->
+<div class="overlay" id="member-overlay">
+  <div class="modal">
+    <h3 id="member-modal-title">Edit team member</h3>
+    <div class="field"><label>Name</label><input id="mb-name" placeholder="Full name"></div>
+    <div class="field"><label>WhatsApp number</label><input id="mb-phone" placeholder="+27 82 123 4567"></div>
+    <div class="field">
+      <label>Positions they can cover</label>
+      <div class="chipset" id="mb-roles" style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px"></div>
+    </div>
+    <div class="field" id="mb-lead-field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px">
+        <input type="checkbox" id="mb-teamlead" style="width:auto"> Team lead
+      </label>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px">
+        <input type="checkbox" id="mb-inactive" style="width:auto"> Inactive &mdash; skip when rostering
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-member">Cancel</button>
+      <button class="btn gold" id="btn-save-member">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / edit song library entry modal -->
+<div class="overlay" id="libsong-overlay">
+  <div class="modal">
+    <h3 id="libsong-modal-title">Add song</h3>
+    <div class="field-row">
+      <div class="field" style="grid-column: span 2"><label>Title</label><input id="lb-title" placeholder="Goodness Of God"></div>
+      <div class="field"><label>Default key</label><input id="lb-key" placeholder="G"></div>
+    </div>
+    <div class="field"><label>CCLI number (optional)</label><input id="lb-ccli" placeholder="7117726"></div>
+    <div class="field">
+      <label>Key when each vocalist leads it (optional)</label>
+      <div id="lb-leader-keys" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btn-delete-libsong" style="display:none;margin-right:auto">Delete</button>
+      <button class="btn ghost" id="btn-cancel-libsong">Cancel</button>
+      <button class="btn gold" id="btn-save-libsong">Save</button>
     </div>
   </div>
 </div>
@@ -677,20 +716,34 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   // ---------- state ----------
   var db = null, userNs = null, myId = null, canEdit = false, canWriteShared = null;
   var songs = [];
-  var sheets = [];
   var resources = [];
   var suggestions = [];
   var resourceFilter = 'all';
   var songFilter = 'all';
   var globalSearch = '';
-  var chordFolder = 'Praise';
-  var chordKeyFolder = null;
-  var activeSheetId = null;
-  var monthCursor = startOfMonth(new Date());
   var editingSongId = null;
-  var editingSheetId = null;
   var editingResourceId = null;
   var profileCache = {};
+
+  // rota state
+  var config = { churchName: '', positions: [
+    {id:'p1', name:'Worship Leader', count:1},
+    {id:'p2', name:'Vocals', count:3},
+    {id:'p3', name:'Keys', count:1},
+    {id:'p4', name:'Acoustic', count:1},
+    {id:'p5', name:'Electric', count:1},
+    {id:'p6', name:'Bass', count:1},
+    {id:'p7', name:'Drums', count:1},
+    {id:'p8', name:'Sound', count:1},
+    {id:'p9', name:'Media', count:1}
+  ], rehearsal: '', songGapWeeks: 3 };
+  var teamUsers = [];
+  var songLibrary = [];
+  var services = [];
+  var activeServiceId = null;
+  var editingServiceId = null;
+  var editingMemberId = null;
+  var editingLibSongId = null;
 
   function toast(msg){
     var t = document.getElementById('toast');
@@ -865,301 +918,6 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     catch(err){ toast('Could not delete.'); }
   });
 
-  // ---------- chord library ----------
-  document.getElementById('chord-folders').addEventListener('click', function(e){
-    var b = e.target.closest('.folder-tab'); if (!b) return;
-    document.querySelectorAll('.folder-tab').forEach(function(c){ c.classList.remove('active'); });
-    b.classList.add('active');
-    chordFolder = b.dataset.cat;
-    chordKeyFolder = null;
-    renderKeyFolders();
-  });
-
-  function renderKeyFolders(){
-    document.getElementById('chord-viewer').style.display = 'none';
-    document.getElementById('sheet-list-wrap').style.display = 'none';
-    var grid = document.getElementById('key-folder-grid');
-    grid.style.display = '';
-    var list = sheets.filter(function(s){ return s.category === chordFolder; });
-    if (!list.length){
-      grid.innerHTML = '<div class="empty-note">No ' + chordFolder.toLowerCase() + ' chord sheets yet.</div>';
-      return;
-    }
-    var groups = {};
-    list.forEach(function(s){
-      var k = s.originalKey || 'Unspecified';
-      groups[k] = groups[k] || [];
-      groups[k].push(s);
-    });
-    var keysInOrder = KEYS.filter(function(k){ return groups[k]; });
-    Object.keys(groups).forEach(function(k){ if (keysInOrder.indexOf(k) === -1) keysInOrder.push(k); });
-    grid.innerHTML = '';
-    keysInOrder.forEach(function(k){
-      var card = document.createElement('div');
-      card.className = 'keyfolder-card';
-      card.style.cursor = 'pointer';
-      card.innerHTML = '<div class="kf-icon">&#128193;</div><div><b>Key of ' + esc(k) + '</b><span>' + groups[k].length + ' song' + (groups[k].length===1?'':'s') + '</span></div>';
-      card.onclick = function(){ chordKeyFolder = k; renderSheetList(); };
-      grid.appendChild(card);
-    });
-  }
-
-  function renderSheetList(){
-    document.getElementById('chord-viewer').style.display = 'none';
-    document.getElementById('key-folder-grid').style.display = 'none';
-    document.getElementById('sheet-list-wrap').style.display = '';
-    document.getElementById('sheet-list-title').textContent = 'Key of ' + chordKeyFolder;
-    var wrap = document.getElementById('sheet-list');
-    var list = sheets.filter(function(s){ return s.category === chordFolder && (s.originalKey || 'Unspecified') === chordKeyFolder; });
-    if (!list.length){
-      wrap.innerHTML = '<div class="empty-note">No sheets in this key yet.</div>';
-      return;
-    }
-    wrap.innerHTML = '';
-    list.forEach(function(s){
-      var row = document.createElement('div');
-      row.className = 'sheet-row';
-      row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + (s.fileUrl ? ' &middot; file' : '') + '</span></div>';
-      var actions = document.createElement('div');
-      actions.style.display = 'flex'; actions.style.gap = '8px';
-      if (s.fileUrl){
-        var openLink = document.createElement('a');
-        openLink.href = s.fileUrl; openLink.target = '_blank'; openLink.rel = 'noopener noreferrer';
-        openLink.className = 'btn small'; openLink.textContent = 'Open';
-        actions.appendChild(openLink);
-      } else {
-        var openBtn = document.createElement('button');
-        openBtn.className = 'btn small'; openBtn.textContent = 'View & transpose';
-        openBtn.onclick = function(){ openSheetViewer(s); };
-        actions.appendChild(openBtn);
-      }
-      if (canEdit){
-        var editBtn = document.createElement('button');
-        editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
-        editBtn.onclick = function(){ openSheetModal(s); };
-        actions.appendChild(editBtn);
-      }
-      row.appendChild(actions);
-      wrap.appendChild(row);
-    });
-  }
-  document.getElementById('btn-back-to-keys').addEventListener('click', function(){ chordKeyFolder = null; renderKeyFolders(); });
-
-  function openSheetViewer(sheet){
-    activeSheetId = sheet.id;
-    document.getElementById('sheet-list-wrap').style.display = 'none';
-    document.getElementById('chord-viewer').style.display = '';
-    document.getElementById('viewer-title').textContent = sheet.title;
-    document.getElementById('viewer-sub').innerHTML = esc(sheet.category) + ' &middot; original key ' + esc(sheet.originalKey);
-    var sel = document.getElementById('viewer-key');
-    sel.innerHTML = KEYS.map(function(k){ return '<option ' + (k===sheet.originalKey?'selected':'') + '>' + k + '</option>'; }).join('');
-    sel.onchange = function(){ renderTransposed(sheet, sel.value); };
-    renderTransposed(sheet, sheet.originalKey);
-  }
-  document.getElementById('btn-back-to-sheets').addEventListener('click', renderSheetList);
-
-  var CHORD_SUFFIX = '(?:maj7|maj9|majb5|maj|min7|min|mM7|m7b5|m7|m9|m6|m11|m13|m|dim7|dim|aug|sus2|sus4|sus|add9|add11|add2|add|6|7|9|11|13|2|4|5)?';
-  var CHORD_RE = new RegExp('^([A-G])(#|b)?(' + CHORD_SUFFIX + ')(?:\\/([A-G])(#|b)?)?$');
-
-  function transposeToken(tok, shift){
-    var m = tok.match(CHORD_RE);
-    if (!m) return tok;
-    var rootIdx = noteIndex(m[1] + (m[2]||''));
-    if (rootIdx < 0) return tok;
-    var newRoot = NOTES_SHARP[(rootIdx + shift + 1200) % 12];
-    var out = newRoot + (m[3]||'');
-    if (m[4]){
-      var bassIdx = noteIndex(m[4] + (m[5]||''));
-      if (bassIdx >= 0) out += '/' + NOTES_SHARP[(bassIdx + shift + 1200) % 12];
-    }
-    return out;
-  }
-  function transposeText(text, shift){
-    return text.replace(/[A-Za-z0-9#\/]+/g, function(tok){
-      var replaced = transposeToken(tok, shift);
-      return replaced;
-    });
-  }
-  function renderTransposed(sheet, targetKey){
-    var origIdx = noteIndex(normKey(sheet.originalKey));
-    var targetIdx = noteIndex(normKey(targetKey));
-    var shift = (origIdx>=0 && targetIdx>=0) ? (targetIdx - origIdx) : 0;
-    var out = transposeText(sheet.body || '', shift);
-    var el = document.getElementById('viewer-body');
-    el.innerHTML = out.replace(/[A-Za-z0-9#\/]+/g, function(tok){
-      var m = tok.match(CHORD_RE);
-      var t = transposeToken(tok, shift);
-      return m ? ('<span class="chord-tok">' + esc(t) + '</span>') : esc(t);
-    });
-  }
-  function normKey(k){ return (k||'C').split(' ')[0].split('/')[0]; }
-
-  // upload / edit modal
-  var sheetOverlay = document.getElementById('sheet-overlay');
-  function openSheetModal(sheet){
-    editingSheetId = sheet ? sheet.id : null;
-    document.getElementById('sheet-modal-title').textContent = sheet ? 'Edit chord sheet' : 'Upload chord sheet';
-    document.getElementById('btn-delete-sheet').style.display = sheet ? '' : 'none';
-    document.getElementById('s-title').value = sheet ? sheet.title : '';
-    document.getElementById('s-category').value = (sheet && sheet.category) || chordFolder;
-    document.getElementById('s-key').innerHTML = KEYS.map(function(k){ return '<option>' + k + '</option>'; }).join('');
-    if (sheet) document.getElementById('s-key').value = sheet.originalKey;
-    document.getElementById('s-pdf-file').value = '';
-    sheetOverlay.classList.add('active');
-  }
-  document.getElementById('btn-add-sheet').addEventListener('click', function(){ openSheetModal(null); });
-  document.getElementById('btn-cancel-sheet').addEventListener('click', function(){ sheetOverlay.classList.remove('active'); });
-  document.getElementById('btn-save-sheet').addEventListener('click', async function(){
-    var title = document.getElementById('s-title').value.trim();
-    if (!title){ toast('Add a title.'); return; }
-    if (!db) { toast('Not connected.'); return; }
-    var existing = editingSheetId ? sheets.find(function(s){ return s.id === editingSheetId; }) : null;
-    var data = { title: title, category: document.getElementById('s-category').value, originalKey: document.getElementById('s-key').value, uploadedBy: myId || null, createdAt: (existing && existing.createdAt) || Date.now() };
-    try {
-      var file = document.getElementById('s-pdf-file').files[0];
-      if (!file){
-        if (existing && (existing.fileUrl || existing.body)){
-          data.fileUrl = existing.fileUrl || null; data.contentType = existing.contentType || null; data.body = existing.body || '';
-        } else { toast('Choose a file to upload.'); return; }
-      } else {
-        toast('Uploading...');
-        var up = await uploadToCloudinary(file);
-        data.fileUrl = up.url; data.contentType = up.contentType; data.body = '';
-      }
-      if (editingSheetId) await db.collection('chordsheets').doc(editingSheetId).set(data);
-      else await db.collection('chordsheets').add(data);
-      sheetOverlay.classList.remove('active');
-      toast('Chord sheet saved.');
-    } catch(err){ toast('Could not save (' + (err.code||err.message||'error') + ').'); }
-  });
-  document.getElementById('btn-delete-sheet').addEventListener('click', async function(){
-    if (!editingSheetId) return;
-    try {
-      await db.collection('chordsheets').doc(editingSheetId).delete();
-      sheetOverlay.classList.remove('active');
-      document.getElementById('chord-viewer').style.display = 'none';
-      renderSheetList();
-      toast('Chord sheet deleted.');
-    } catch(err){ toast('Could not delete.'); }
-  });
-
-  // ---------- availability ----------
-  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
-  function sundaysOfMonth(monthStart){
-    var out = [];
-    var d = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
-    while (d.getDay() !== 0) d.setDate(d.getDate()+1);
-    while (d.getMonth() === monthStart.getMonth()){
-      out.push(new Date(d));
-      d.setDate(d.getDate()+7);
-    }
-    return out;
-  }
-  function weekId(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
-  function fmtDate(d){ return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
-  function fmtMonth(d){ return d.toLocaleDateString(undefined, { month:'long', year:'numeric' }); }
-
-  var availUnsub = null;
-  var availDocs = {}; // weekId_userId -> data
-
-  document.getElementById('month-prev').addEventListener('click', function(){
-    monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()-1, 1);
-    renderAvailability();
-  });
-  document.getElementById('month-next').addEventListener('click', function(){
-    monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+1, 1);
-    renderAvailability();
-  });
-
-  function renderAvailability(){
-    document.getElementById('month-label').textContent = fmtMonth(monthCursor);
-    var sundays = sundaysOfMonth(monthCursor);
-    var ids = sundays.map(weekId);
-
-    if (availUnsub) { availUnsub(); availUnsub = null; }
-    availDocs = {};
-    renderMyWeeks(sundays);
-    renderTeamGrid(sundays);
-
-    if (!db) return;
-    try {
-      availUnsub = db.collection('availability').where('weekId','in', ids).onSnapshot(function(snap){
-        availDocs = {};
-        snap.docs.forEach(function(doc){
-          var d = doc.data();
-          availDocs[doc.id] = d;
-        });
-        renderMyWeeks(sundays);
-        renderTeamGrid(sundays);
-      }, function(){ /* ignore */ });
-    } catch(e){ /* invalid query, ignore */ }
-  }
-
-  function renderMyWeeks(sundays){
-    var wrap = document.getElementById('my-weeks');
-    wrap.innerHTML = '';
-    sundays.forEach(function(sun){
-      var wid = weekId(sun);
-      var docId = wid + '_' + (myId || 'anon');
-      var current = availDocs[docId] ? availDocs[docId].status : null;
-      var row = document.createElement('div');
-      row.className = 'week-row';
-      row.innerHTML = '<div class="week-date">' + fmtDate(sun) + '</div><div class="status-btns"></div>';
-      var btns = row.querySelector('.status-btns');
-      [['available','Available'],['maybe','Maybe'],['unavailable','Can\'t make it']].forEach(function(pair){
-        var b = document.createElement('button');
-        b.className = 'status-btn' + (current===pair[0] ? ' active' : '');
-        b.dataset.s = pair[0];
-        b.textContent = pair[1];
-        b.title = current===pair[0] ? 'Click again to clear' : '';
-        b.onclick = function(){ setAvailability(wid, current===pair[0] ? null : pair[0]); };
-        btns.appendChild(b);
-      });
-      wrap.appendChild(row);
-    });
-  }
-
-  async function setAvailability(wid, status){
-    if (!db || !myId){ toast('Sign-in required to set availability.'); return; }
-    var docId = wid + '_' + myId;
-    try {
-      if (status === null){
-        await db.collection('availability').doc(docId).delete();
-        toast('Cleared.');
-      } else {
-        await db.collection('availability').doc(docId).set({ weekId: wid, userId: myId, status: status, updatedAt: Date.now() });
-      }
-    } catch(err){ toast('Could not save your availability.'); }
-  }
-
-  async function renderTeamGrid(sundays){
-    var table = document.getElementById('team-grid');
-    var userIds = {};
-    Object.keys(availDocs).forEach(function(k){ userIds[availDocs[k].userId] = true; });
-    var ids = Object.keys(userIds);
-    if (!ids.length){
-      table.innerHTML = '<tr><td style="padding:16px 4px;color:var(--ink-soft)">No one has set availability for this month yet.</td></tr>';
-      return;
-    }
-    var names = {};
-    if (userNs){
-      try { var profiles = await userNs.profiles(ids); ids.forEach(function(id){ names[id] = (profiles[id] && profiles[id].name) || 'Someone'; }); }
-      catch(e){ ids.forEach(function(id){ names[id] = 'Someone'; }); }
-    } else { ids.forEach(function(id){ names[id] = 'Someone'; }); }
-
-    var head = '<tr><th>Name</th>' + sundays.map(function(s){ return '<th>' + fmtDate(s) + '</th>'; }).join('') + '</tr>';
-    var rows = ids.map(function(id){
-      var cells = sundays.map(function(s){
-        var d = availDocs[weekId(s) + '_' + id];
-        var status = d ? d.status : 'none';
-        var symbol = status==='available' ? '&#10003;' : status==='maybe' ? '?' : status==='unavailable' ? '&#10007;' : '';
-        return '<td><span class="pill ' + status + '">' + symbol + '</span></td>';
-      }).join('');
-      return '<tr><td>' + esc(names[id]) + (id===myId ? ' (you)' : '') + '</td>' + cells + '</tr>';
-    }).join('');
-    table.innerHTML = head + rows;
-  }
-
   // ---------- shared name resolution ----------
   async function resolveNames(ids){
     var need = ids.filter(function(id){ return id && !profileCache[id]; });
@@ -1180,6 +938,614 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var m = Math.round(s/60); if (m < 60) return m + 'm ago';
     var h = Math.round(m/60); if (h < 24) return h + 'h ago';
     var d = Math.round(h/24); return d + 'd ago';
+  }
+
+  // ---------- rota: dates & services ----------
+  function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-3); }
+  var DAYS3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MON3 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function svcISO(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function parseSvcISO(s){ var p = String(s).split('-').map(Number); return new Date(p[0], (p[1]||1)-1, p[2]||1); }
+  function fmtSvc(s){ if (!s) return '—'; var d = parseSvcISO(s); return DAYS3[d.getDay()] + ' ' + d.getDate() + ' ' + MON3[d.getMonth()]; }
+  function fmtSvcLong(s){ if (!s) return '—'; var d = parseSvcISO(s); return DAYS3[d.getDay()] + ' ' + d.getDate() + ' ' + MON3[d.getMonth()] + ' ' + d.getFullYear(); }
+  function nextSundayISO(){ var d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); return svcISO(d); }
+  function weeksBetweenISO(a,b){ return Math.round((parseSvcISO(b) - parseSvcISO(a)) / 6048e5); }
+
+  function svcList(){ return services.slice().sort(function(a,b){ return (a.date+a.time).localeCompare(b.date+b.time); }); }
+  function ensureActiveService(){
+    if (!activeServiceId || !services.some(function(s){ return s.id === activeServiceId; })){
+      var todayISO = svcISO(new Date());
+      var upcoming = svcList().filter(function(s){ return s.date >= todayISO; });
+      var list = svcList();
+      var pick = upcoming[0] || list[list.length-1];
+      activeServiceId = pick ? pick.id : null;
+    }
+  }
+  function curService(){ return services.find(function(s){ return s.id === activeServiceId; }); }
+  function saveServiceField(s, field, value){
+    var data = {}; data[field] = value;
+    return db.collection('services').doc(s.id).update(data).catch(function(){ toast('Could not save.'); });
+  }
+
+  function rosterSlots(){
+    var out = [];
+    (config.positions||[]).forEach(function(p){
+      for (var i=0;i<(p.count||1);i++) out.push({ key: p.id+'#'+i, posId: p.id, name: p.name, idx: i, count: p.count||1 });
+    });
+    return out;
+  }
+  function posName(id){ var p=(config.positions||[]).find(function(x){return x.id===id;}); return p?p.name:''; }
+  function memberName(id){ var m = teamUsers.find(function(x){return x.id===id;}); return (m&&m.name)||'Unassigned'; }
+
+  function servedBefore(beforeDate){
+    var h = {};
+    svcList().forEach(function(s){
+      if (beforeDate && s.date >= beforeDate) return;
+      Object.keys(s.assign||{}).forEach(function(k){
+        var mid = s.assign[k]; if (!mid) return;
+        if (!h[mid] || h[mid] < s.date) h[mid] = s.date;
+      });
+    });
+    return h;
+  }
+  function servedCount(){
+    var c = {};
+    svcList().forEach(function(s){ Object.keys(s.assign||{}).forEach(function(k){ var mid=s.assign[k]; if (mid) c[mid]=(c[mid]||0)+1; }); });
+    return c;
+  }
+  function restText(mid, date){
+    if (!mid) return '';
+    var last = servedBefore(date)[mid];
+    if (!last) return 'not yet rostered';
+    var w = weeksBetweenISO(last, date);
+    if (w<=0) return 'served this week';
+    return w===1 ? 'served last week' : w+' weeks since last';
+  }
+  function uniq(arr){ return arr.filter(function(v,i,a){ return a.indexOf(v)===i; }); }
+
+  async function autoFill(replaceAll){
+    var s = curService(); if (!s) return;
+    var hist = servedBefore(s.date), counts = servedCount();
+    var assign = replaceAll ? {} : Object.assign({}, s.assign||{});
+    var used = {};
+    Object.keys(assign).forEach(function(k){ if (assign[k]) used[assign[k]]=true; });
+    var filled=0, short=[], doubles=[];
+
+    function eligibleFor(m, sl){ return !m.inactive && (m.roles||[]).indexOf(sl.posId)>=0 && (s.avail||{})[m.id] !== 'no'; }
+    var order = rosterSlots()
+      .map(function(sl,i){ return {sl:sl, i:i, n: teamUsers.filter(function(m){ return eligibleFor(m, sl); }).length}; })
+      .sort(function(a,b){ return a.n!==b.n ? a.n-b.n : a.i-b.i; })
+      .map(function(x){ return x.sl; });
+
+    order.forEach(function(sl){
+      if (assign[sl.key]) return;
+      var pool = teamUsers.filter(function(m){ return eligibleFor(m, sl) && !used[m.id]; });
+      var doubled = false;
+      if (!pool.length){
+        pool = teamUsers.filter(function(m){ return eligibleFor(m, sl) && used[m.id] && assign[sl.key]!==m.id; });
+        doubled = pool.length>0;
+      }
+      if (!pool.length){ short.push(sl.name); return; }
+      pool.sort(function(a,b){
+        var av = function(x){ return (s.avail||{})[x.id]==='yes' ? 0 : 1; };
+        if (av(a)!==av(b)) return av(a)-av(b);
+        var la = hist[a.id] ? weeksBetweenISO(hist[a.id], s.date) : 999;
+        var lb = hist[b.id] ? weeksBetweenISO(hist[b.id], s.date) : 999;
+        if (la!==lb) return lb-la;
+        var ca = counts[a.id]||0, cb = counts[b.id]||0;
+        if (ca!==cb) return ca-cb;
+        return (a.name||'').localeCompare(b.name||'');
+      });
+      assign[sl.key] = pool[0].id; used[pool[0].id]=true; filled++;
+      if (doubled) doubles.push(pool[0].name+' — '+sl.name);
+    });
+
+    try {
+      await saveServiceField(s, 'assign', assign);
+      var bits=[];
+      bits.push(filled ? ('Filled '+filled+' position'+(filled===1?'':'s')) : 'Nothing left to fill');
+      if (doubles.length) bits.push('double-booked to cover a gap: '+doubles.join(', '));
+      if (short.length) bits.push('no one available for '+uniq(short).join(', '));
+      toast(bits.join(' · '));
+    } catch(err){ toast('Could not save roster.'); }
+  }
+
+  // ---------- rota: service switcher ----------
+  function renderServiceSwitcher(containerId){
+    var el = document.getElementById(containerId); if (!el) return;
+    var list = svcList();
+    var options = list.map(function(s){
+      return '<option value="'+s.id+'" '+(s.id===activeServiceId?'selected':'')+'>'+esc(fmtSvc(s.date))+' &middot; '+esc(s.time)+(s.label?' &middot; '+esc(s.label):'')+'</option>';
+    }).join('');
+    el.innerHTML = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px;">' +
+      (list.length ? '<select class="svc-pick" style="max-width:280px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;">'+options+'</select>' : '<span class="tiny-note" style="margin:0">No services yet.</span>') +
+      (canEdit ? '<button class="btn ghost small svc-add">+ Add service</button>' : '') +
+      (canEdit && list.length ? '<button class="btn ghost small svc-edit">Edit service</button>' : '') +
+      '</div>';
+    var sel = el.querySelector('.svc-pick');
+    if (sel) sel.onchange = function(){ activeServiceId = sel.value; renderServiceViews(); };
+    var addBtn = el.querySelector('.svc-add');
+    if (addBtn) addBtn.onclick = function(){ openServiceModal(null); };
+    var editBtn = el.querySelector('.svc-edit');
+    if (editBtn) editBtn.onclick = function(){ openServiceModal(curService()); };
+  }
+
+  function openServiceModal(s){
+    var isNew = !s;
+    document.getElementById('service-modal-title').textContent = isNew ? 'Add service' : 'Edit service';
+    document.getElementById('btn-delete-service').style.display = isNew ? 'none' : '';
+    editingServiceId = isNew ? null : s.id;
+    document.getElementById('sv-date').value = isNew ? nextSundayISO() : s.date;
+    document.getElementById('sv-time').value = isNew ? '09:00' : s.time;
+    document.getElementById('sv-label').value = isNew ? '' : (s.label||'');
+    document.getElementById('service-overlay').classList.add('active');
+  }
+  document.getElementById('btn-cancel-service').addEventListener('click', function(){ document.getElementById('service-overlay').classList.remove('active'); });
+  document.getElementById('btn-save-service').addEventListener('click', async function(){
+    var date = document.getElementById('sv-date').value;
+    if (!date){ toast('Pick a date.'); return; }
+    var time = document.getElementById('sv-time').value || '09:00';
+    var label = document.getElementById('sv-label').value.trim();
+    try {
+      if (editingServiceId){
+        await db.collection('services').doc(editingServiceId).update({ date: date, time: time, label: label });
+      } else {
+        var ref = await db.collection('services').add({ date: date, time: time, label: label, assign: {}, avail: {}, set: [], notes: '', createdAt: Date.now() });
+        activeServiceId = ref.id;
+      }
+      document.getElementById('service-overlay').classList.remove('active');
+      toast('Saved.');
+    } catch(err){ toast('Could not save.'); }
+  });
+  document.getElementById('btn-delete-service').addEventListener('click', async function(){
+    if (!editingServiceId) return;
+    if (services.length < 2){ toast('Keep at least one service.'); return; }
+    if (!confirm('Delete this service?')) return;
+    try {
+      await db.collection('services').doc(editingServiceId).delete();
+      activeServiceId = null;
+      document.getElementById('service-overlay').classList.remove('active');
+      toast('Deleted.');
+    } catch(err){ toast('Could not delete.'); }
+  });
+
+  // ---------- rota: availability ----------
+  function renderAvailabilityTab(){
+    var el = document.getElementById('availability-body'); if (!el) return;
+    var head = '<div class="panel-head"><div><h2 class="display">Availability</h2><p>Tap a cell to cycle: no reply &rarr; can serve &rarr; can’t serve.</p></div></div>';
+    var upcoming = svcList().filter(function(s){ return s.date >= svcISO(new Date()); }).slice(0,8);
+    var mem = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+
+    if (!upcoming.length){
+      el.innerHTML = head + '<div class="empty-note">No upcoming services yet' + (canEdit ? ' &mdash; add one from the Roster tab.' : '.') + '</div>';
+      return;
+    }
+    if (!mem.length){
+      el.innerHTML = head + '<div class="empty-note">No one on the team yet.</div>';
+      return;
+    }
+
+    var headRow = '<tr><th>Name</th>' + upcoming.map(function(s){
+      return '<th class="c">' + esc(fmtSvc(s.date)) + '<div style="font-weight:400;color:var(--ink-soft);font-size:10.5px">' + esc(s.time) + '</div></th>';
+    }).join('') + '</tr>';
+
+    var bodyRows = mem.map(function(m){
+      var cells = upcoming.map(function(s){
+        var v = (s.avail||{})[m.id] || '';
+        var lab = v==='yes' ? '&#10003;' : v==='no' ? '&#10007;' : '&middot;';
+        var editable = canEdit || m.id === myId;
+        return '<td class="c"><button class="av ' + v + '" ' + (editable?'':'disabled') + ' data-svc="' + s.id + '" data-mem="' + m.id + '" title="' + esc(m.name) + ' — ' + esc(fmtSvc(s.date)) + '">' + lab + '</button></td>';
+      }).join('');
+      return '<tr><th>' + esc(m.name) + (m.id===myId?' (you)':'') + '<div style="font-weight:400;color:var(--ink-soft);font-size:11px">' + esc(uniq((m.roles||[]).map(posName)).filter(Boolean).join(', ')) + '</div></th>' + cells + '</tr>';
+    }).join('');
+
+    el.innerHTML = head + '<div style="overflow-x:auto"><table class="team-grid"><thead>' + headRow + '</thead><tbody>' + bodyRows + '</tbody></table></div>';
+
+    el.querySelectorAll('.av').forEach(function(b){
+      if (b.disabled) return;
+      b.onclick = function(){
+        var s = services.find(function(x){ return x.id === b.dataset.svc; }); if (!s) return;
+        var avail = Object.assign({}, s.avail||{});
+        var cur = avail[b.dataset.mem];
+        if (!cur) avail[b.dataset.mem] = 'yes';
+        else if (cur === 'yes') avail[b.dataset.mem] = 'no';
+        else delete avail[b.dataset.mem];
+        saveServiceField(s, 'avail', avail);
+      };
+    });
+  }
+
+  // ---------- rota: roster ----------
+  function renderRosterTab(){
+    var el = document.getElementById('roster-body'); if (!el) return;
+    renderServiceSwitcher('service-switcher-roster');
+    var s = curService();
+    if (!s){
+      el.innerHTML = '<div class="empty-note">No services yet' + (canEdit?' &mdash; add one above.':'.') + '</div>';
+      return;
+    }
+    var sl = rosterSlots();
+    var gaps = sl.filter(function(x){ return !(s.assign||{})[x.key]; });
+    var mem = teamUsers.filter(function(m){ return !m.inactive; });
+    var confirmed = mem.filter(function(m){ return (s.avail||{})[m.id]==='yes'; }).length;
+    var declined = mem.filter(function(m){ return (s.avail||{})[m.id]==='no'; }).length;
+
+    var rows = sl.map(function(x){
+      var mid = (s.assign||{})[x.key] || '';
+      var opts = teamUsers.filter(function(m){ return !m.inactive && (m.roles||[]).indexOf(x.posId)>=0; })
+        .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
+        .map(function(m){
+          var a = (s.avail||{})[m.id];
+          var takenElsewhere = Object.keys(s.assign||{}).some(function(k){ return s.assign[k]===m.id && k!==x.key; });
+          return '<option value="'+m.id+'" '+(m.id===mid?'selected':'')+'>'+esc(m.name)+(a==='no'?' — can’t serve':a!=='yes'?' — no reply':'')+(takenElsewhere?' &middot; also serving elsewhere':'')+'</option>';
+        }).join('');
+      var label = x.count>1 ? x.name+' '+(x.idx+1) : x.name;
+      var warn = mid && (s.avail||{})[mid]==='no';
+      return '<div class="slot ' + (mid?'':'gap') + '">' +
+        '<div class="pos">' + esc(label) + '</div>' +
+        '<div class="who"><select class="slotSel" data-slot="'+x.key+'" '+(canEdit?'':'disabled')+'><option value="">— unfilled —</option>'+opts+'</select>' +
+        (warn ? '<span class="chip" style="border-color:var(--no);color:var(--no)">marked unavailable</span>' : '') + '</div>' +
+        '<div class="rest">' + (mid ? esc(restText(mid, s.date)) : 'no one assigned') + '</div>' +
+      '</div>';
+    }).join('');
+
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">' + esc(fmtSvcLong(s.date)) + ' &middot; ' + esc(s.time) + (s.label?' &middot; '+esc(s.label):'') + '</h2>' +
+      '<p>Auto-fill prefers whoever’s gone longest without serving and skips anyone who said they can’t make it.</p></div></div>' +
+      '<div class="stat-bank">' +
+        '<div><b>' + confirmed + '</b><span>confirmed</span></div>' +
+        '<div><b>' + declined + '</b><span>said no</span></div>' +
+        '<div><b>' + gaps.length + '</b><span>unfilled</span></div>' +
+      '</div>' +
+      (gaps.length ? '<div class="tiny-note" style="background:var(--no-soft);border:1px solid var(--no);color:var(--no);padding:8px 12px;border-radius:8px;margin:0 0 14px;">Still to fill: ' + esc(uniq(gaps.map(function(g){return g.name;})).join(', ')) + '</div>' : '') +
+      (canEdit ? '<div class="bar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"><button class="btn gold small" id="btn-fill-gaps">Fill empty slots</button><button class="btn ghost small" id="btn-fill-all">Rebuild from scratch</button><button class="btn ghost small" id="btn-clear-roster">Clear</button></div>' : '') +
+      '<div class="slot-sheet">' + rows + '</div>' +
+      (canEdit ? '<div class="field" style="margin-top:16px"><label>Notes for the team</label><textarea id="svc-notes" style="min-height:70px;font-family:inherit">'+esc(s.notes||'')+'</textarea></div>' : (s.notes? '<div class="field" style="margin-top:16px"><label>Notes</label><p style="margin:0">'+esc(s.notes)+'</p></div>' : ''));
+
+    if (canEdit){
+      document.getElementById('btn-fill-gaps').onclick = function(){ autoFill(false); };
+      document.getElementById('btn-fill-all').onclick = function(){ autoFill(true); };
+      document.getElementById('btn-clear-roster').onclick = function(){ saveServiceField(s, 'assign', {}).then(function(){ toast('Cleared.'); }); };
+      var nt = document.getElementById('svc-notes');
+      if (nt) nt.onblur = function(){ saveServiceField(s, 'notes', nt.value); };
+    }
+    el.querySelectorAll('.slotSel').forEach(function(sel){
+      sel.onchange = function(){
+        var assign = Object.assign({}, s.assign||{});
+        if (sel.value) assign[sel.dataset.slot] = sel.value; else delete assign[sel.dataset.slot];
+        saveServiceField(s, 'assign', assign);
+      };
+    });
+  }
+
+  // ---------- rota: set list ----------
+  function renderSetListTab(){
+    var el = document.getElementById('setlist-body'); if (!el) return;
+    renderServiceSwitcher('service-switcher-setlist');
+    var s = curService();
+    if (!s){
+      el.innerHTML = '<div class="empty-note">No services yet' + (canEdit?' &mdash; add one above.':'.') + '</div>';
+      return;
+    }
+    var set = s.set || [];
+    var lib = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
+    var leadId = (s.assign||{})[((config.positions||[])[0]||{}).id + '#0'];
+
+    var gapW = config.songGapWeeks || 3;
+    var recent = {};
+    svcList().forEach(function(x){
+      if (x.id===s.id || x.date >= s.date) return;
+      (x.set||[]).forEach(function(it){ if (!recent[it.songId] || recent[it.songId] < x.date) recent[it.songId]=x.date; });
+    });
+
+    var rows = set.map(function(it, i){
+      var sg = songLibrary.find(function(x){ return x.id===it.songId; });
+      if (!sg) return '';
+      var last = recent[it.songId];
+      var w = last ? weeksBetweenISO(last, s.date) : null;
+      var tooSoon = w!==null && w < gapW;
+      var suggested = leadId && sg.keys && sg.keys[leadId] ? sg.keys[leadId] : sg.key;
+      return '<div class="sheet-row">' +
+        '<div class="info"><b>' + (i+1) + '. ' + esc(sg.title) + '</b>' +
+        '<span>' + (last ? (tooSoon ? '<span style="color:var(--no)">played '+w+' week'+(w===1?'':'s')+' ago</span>' : 'last played '+esc(fmtSvc(last))) : 'not played before') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + '</span></div>' +
+        (canEdit ?
+          '<input type="text" value="'+esc(it.key||suggested||'')+'" data-setkey="'+i+'" style="width:64px;text-align:center;padding:6px;border-radius:6px;border:1.5px solid var(--line)">' +
+          '<button class="btn ghost small" data-up="'+i+'" '+(i===0?'disabled':'')+'>&uarr;</button>' +
+          '<button class="btn ghost small" data-down="'+i+'" '+(i===set.length-1?'disabled':'')+'>&darr;</button>' +
+          '<button class="btn ghost small" data-rm="'+i+'">Remove</button>'
+        : '<b>'+esc(it.key||suggested||'—')+'</b>') +
+      '</div>';
+    }).join('');
+
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">Set List &middot; ' + esc(fmtSvc(s.date)) + '</h2>' +
+      '<p>Keys default to whoever’s leading. Anything sung in the last ' + gapW + ' weeks gets flagged.</p></div></div>' +
+      (canEdit ? '<div class="filterbar"><select id="add-libsong" style="max-width:280px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)"><option value="">Add a song&hellip;</option>' +
+        lib.map(function(sg){ return '<option value="'+sg.id+'">'+esc(sg.title)+(sg.key?' ('+esc(sg.key)+')':'')+'</option>'; }).join('') + '</select></div>' : '') +
+      (set.length ? '<div class="sheet-list">' + rows + '</div>' :
+        '<div class="empty-note">No songs yet' + (lib.length ? (canEdit?' &mdash; pick one above.':'.') : ' &mdash; add songs to the library first.') + '</div>');
+
+    var add = document.getElementById('add-libsong');
+    if (add) add.onchange = function(){
+      if (!add.value) return;
+      var sg = songLibrary.find(function(x){ return x.id===add.value; });
+      var newSet = set.concat([{songId: add.value, key: (leadId && sg.keys && sg.keys[leadId]) || sg.key || ''}]);
+      saveServiceField(s, 'set', newSet);
+    };
+    el.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){ var newSet=set.slice(); newSet.splice(+b.dataset.rm,1); saveServiceField(s,'set',newSet); }; });
+    el.querySelectorAll('[data-up]').forEach(function(b){ b.onclick = function(){ var i=+b.dataset.up; var newSet=set.slice(); var t=newSet[i-1]; newSet[i-1]=newSet[i]; newSet[i]=t; saveServiceField(s,'set',newSet); }; });
+    el.querySelectorAll('[data-down]').forEach(function(b){ b.onclick = function(){ var i=+b.dataset.down; var newSet=set.slice(); var t=newSet[i+1]; newSet[i+1]=newSet[i]; newSet[i]=t; saveServiceField(s,'set',newSet); }; });
+    el.querySelectorAll('[data-setkey]').forEach(function(inp){ inp.onchange = function(){ var newSet=set.slice(); newSet[+inp.dataset.setkey]=Object.assign({}, newSet[+inp.dataset.setkey], {key: inp.value.trim()}); saveServiceField(s,'set',newSet); }; });
+  }
+
+  // ---------- rota: send ----------
+  function buildRosterMessage(){
+    var s = curService(); if (!s) return '';
+    var L = [];
+    L.push((config.churchName ? config.churchName.toUpperCase()+' — ' : '') + 'WORSHIP ROSTER');
+    L.push(fmtSvcLong(s.date) + ' · ' + s.time + (s.label ? ' · '+s.label : ''));
+    L.push('');
+    (config.positions||[]).forEach(function(p){
+      var names = [];
+      for (var i=0;i<(p.count||1);i++){ var mid=(s.assign||{})[p.id+'#'+i]; if (mid) names.push(memberName(mid)); }
+      if (names.length) L.push(p.name + ': ' + names.join(', '));
+    });
+    var missing = uniq(rosterSlots().filter(function(x){ return !(s.assign||{})[x.key]; }).map(function(x){ return x.name; }));
+    if (missing.length){ L.push(''); L.push('Still needed: ' + missing.join(', ')); }
+    if ((s.set||[]).length){
+      L.push(''); L.push('SET LIST');
+      s.set.forEach(function(it, i){ var sg = songLibrary.find(function(x){return x.id===it.songId;}); if (sg) L.push((i+1)+'. '+sg.title+(it.key?' — '+it.key:'')); });
+    }
+    if (config.rehearsal){ L.push(''); L.push('Rehearsal: '+config.rehearsal); }
+    if (s.notes){ L.push(''); L.push(s.notes); }
+    return L.join('\n');
+  }
+  function downloadRosterCSV(s){
+    var lines = [['Date','Time','Position','Name','WhatsApp']];
+    rosterSlots().forEach(function(x){
+      var mid = (s.assign||{})[x.key];
+      var m = teamUsers.find(function(u){ return u.id===mid; });
+      lines.push([s.date, s.time, x.count>1 ? x.name+' '+(x.idx+1) : x.name, m?m.name:'', m&&m.phone?m.phone:'']);
+    });
+    (s.set||[]).forEach(function(it,i){
+      var sg = songLibrary.find(function(x){ return x.id===it.songId; });
+      if (sg) lines.push([s.date, s.time, 'Song '+(i+1), sg.title, it.key||'']);
+    });
+    var csv = lines.map(function(r){ return r.map(function(c){ return /[",\n]/.test(c) ? '"'+String(c).replace(/"/g,'""')+'"' : c; }).join(','); }).join('\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = 'roster-'+s.date+'.csv'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+  }
+  function renderSendTab(){
+    var el = document.getElementById('send-body'); if (!el) return;
+    renderServiceSwitcher('service-switcher-send');
+    var s = curService();
+    if (!s){ el.innerHTML = '<div class="empty-note">No services yet.</div>'; return; }
+    var msg = buildRosterMessage();
+    var withPhones = teamUsers.filter(function(m){ return Object.keys(s.assign||{}).some(function(k){return s.assign[k]===m.id;}) && m.phone; }).length;
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">Send It Out</h2><p>Copy this into WhatsApp, email, or your church group.</p></div></div>' +
+      '<div class="bar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">' +
+        '<button class="btn gold small" id="btn-copy-msg">Copy message</button>' +
+        '<button class="btn ghost small" id="btn-wa-msg">Open in WhatsApp</button>' +
+        '<button class="btn ghost small" id="btn-csv-out">Download CSV</button>' +
+        '<button class="btn ghost small" id="btn-print-out">Print</button>' +
+      '</div>' +
+      '<pre class="chord-body">' + esc(msg) + '</pre>' +
+      '<p class="tiny-note" style="margin-top:12px">' + (withPhones ? withPhones + ' of the people rostered have a WhatsApp number saved.' : 'Add WhatsApp numbers on the Team tab to reach people individually.') + '</p>';
+
+    document.getElementById('btn-copy-msg').onclick = async function(){
+      try { await navigator.clipboard.writeText(msg); toast('Copied.'); }
+      catch(e){ toast('Could not copy — select the text manually.'); }
+    };
+    document.getElementById('btn-wa-msg').onclick = function(){ window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener'); };
+    document.getElementById('btn-print-out').onclick = function(){ window.print(); };
+    document.getElementById('btn-csv-out').onclick = function(){ downloadRosterCSV(s); };
+  }
+
+  function renderServiceViews(){
+    ensureActiveService();
+    renderAvailabilityTab();
+    renderRosterTab();
+    renderSetListTab();
+    renderSendTab();
+  }
+
+  // ---------- rota: team ----------
+  function renderTeam(){
+    var el = document.getElementById('team-body'); if (!el) return;
+    var counts = servedCount(), hist = servedBefore(null);
+    var mem = teamUsers.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    var rows = mem.map(function(m){
+      var waLink = m.phone ? ' &middot; <a href="https://wa.me/'+m.phone.replace(/[^0-9]/g,'')+'" target="_blank" rel="noopener noreferrer" style="color:var(--worship);font-weight:700">WhatsApp</a>' : '';
+      return '<div class="sheet-row">' +
+        '<div class="info"><b>' + esc(m.name||'Unnamed') + (m.inactive?' <span style="color:var(--ink-soft);font-weight:400;font-size:12px">— inactive</span>':'') + (m.isTeamLead?' <span style="color:var(--gold-ink);font-weight:700;font-size:11px">&middot; Team lead</span>':'') + '</b>' +
+        '<span>' + ((m.roles||[]).length ? esc(uniq((m.roles||[]).map(posName)).filter(Boolean).join(' \u00b7 ')) : '<span style="color:var(--no)">no positions set</span>') + '</span>' +
+        '<span style="font-size:11px">' + (counts[m.id]||0) + ' services' + (hist[m.id]?' &middot; last '+esc(fmtSvc(hist[m.id])):'') + (m.phone?' &middot; '+esc(m.phone):'') + waLink + '</span></div>' +
+        (canEdit || m.id===myId ? '<button class="btn ghost small" data-edit-member="'+m.id+'">Edit</button>' : '') +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">Team</h2><p>Tick every position a person can cover &mdash; auto-fill only ever considers someone for a position they’re ticked for. People appear here automatically once they sign in.</p></div></div>' +
+      (mem.length ? '<div class="sheet-list">'+rows+'</div>' : '<div class="empty-note">Nobody has signed in yet.</div>');
+    el.querySelectorAll('[data-edit-member]').forEach(function(b){
+      b.onclick = function(){ openMemberModal(teamUsers.find(function(x){return x.id===b.dataset.editMember;})); };
+    });
+  }
+  function openMemberModal(m){
+    if (!m) return;
+    editingMemberId = m.id;
+    document.getElementById('member-modal-title').textContent = 'Edit ' + (m.name||'team member');
+    document.getElementById('mb-name').value = m.name||'';
+    document.getElementById('mb-phone').value = m.phone||'';
+    document.getElementById('mb-inactive').checked = !!m.inactive;
+    document.getElementById('mb-teamlead').checked = !!m.isTeamLead;
+    document.getElementById('mb-lead-field').style.display = canEdit ? '' : 'none';
+    var rolesEl = document.getElementById('mb-roles');
+    rolesEl.innerHTML = (config.positions||[]).map(function(p){
+      return '<button type="button" class="chip' + ((m.roles||[]).indexOf(p.id)>=0?' active':'') + '" data-role="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join('');
+    rolesEl.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ c.classList.toggle('active'); }; });
+    document.getElementById('member-overlay').classList.add('active');
+  }
+  document.getElementById('btn-cancel-member').addEventListener('click', function(){ document.getElementById('member-overlay').classList.remove('active'); });
+  document.getElementById('btn-save-member').addEventListener('click', async function(){
+    if (!editingMemberId) return;
+    var name = document.getElementById('mb-name').value.trim();
+    if (!name){ toast('Add a name.'); return; }
+    var data = {
+      name: name,
+      phone: document.getElementById('mb-phone').value.trim(),
+      roles: Array.prototype.slice.call(document.querySelectorAll('#mb-roles .chip.active')).map(function(c){ return c.dataset.role; }),
+      inactive: document.getElementById('mb-inactive').checked
+    };
+    if (canEdit) data.isTeamLead = document.getElementById('mb-teamlead').checked;
+    try {
+      await db.collection('users').doc(editingMemberId).update(data);
+      document.getElementById('member-overlay').classList.remove('active');
+      toast('Saved.');
+    } catch(err){ toast('Could not save.'); }
+  });
+
+  // ---------- rota: song library ----------
+  function renderSongLibrary(){
+    var el = document.getElementById('songlibrary-body'); if (!el) return;
+    var lib = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
+    var last = {};
+    svcList().forEach(function(x){ (x.set||[]).forEach(function(it){ if (!last[it.songId] || last[it.songId] < x.date) last[it.songId]=x.date; }); });
+    var rows = lib.map(function(sg){
+      return '<div class="sheet-row"><div class="info"><b>' + esc(sg.title) + '</b>' +
+        '<span>' + (last[sg.id] ? 'last sung '+esc(fmtSvc(last[sg.id])) : 'never sung') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (sg.keys && Object.keys(sg.keys).length ? ' &middot; '+Object.keys(sg.keys).length+' vocalist key'+(Object.keys(sg.keys).length===1?'':'s') : '') + '</span></div>' +
+        '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:16px">' + esc(sg.key||'—') + '</b>' +
+        (canEdit ? '<button class="btn ghost small" data-libedit="'+sg.id+'">Edit</button>' : '') +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">Song Library</h2><p>Set a default key, then a key per vocalist who leads it &mdash; the set list picks the right one automatically.</p></div>' +
+      (canEdit ? '<button class="btn gold" id="btn-add-libsong">+ Add song</button>' : '') + '</div>' +
+      (lib.length ? '<div class="sheet-list">'+rows+'</div>' : '<div class="empty-note">Library is empty' + (canEdit?' — add the songs your team sings.':'.') + '</div>');
+    var addBtn = document.getElementById('btn-add-libsong');
+    if (addBtn) addBtn.onclick = function(){ openLibSongModal(null); };
+    el.querySelectorAll('[data-libedit]').forEach(function(b){ b.onclick = function(){ openLibSongModal(songLibrary.find(function(x){return x.id===b.dataset.libedit;})); }; });
+  }
+  function openLibSongModal(sg){
+    var isNew = !sg;
+    sg = sg || {id: null, title:'', key:'', ccli:'', keys:{}};
+    editingLibSongId = isNew ? null : sg.id;
+    document.getElementById('libsong-modal-title').textContent = isNew ? 'Add song' : 'Edit song';
+    document.getElementById('btn-delete-libsong').style.display = isNew ? 'none' : '';
+    document.getElementById('lb-title').value = sg.title||'';
+    document.getElementById('lb-key').value = sg.key||'';
+    document.getElementById('lb-ccli').value = sg.ccli||'';
+    var leaders = teamUsers.filter(function(m){ return !m.inactive && (m.roles||[]).some(function(r){ var p=(config.positions||[]).find(function(x){return x.id===r;}); return p && /vocal|lead/i.test(p.name); }); }).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+    var wrap = document.getElementById('lb-leader-keys');
+    if (leaders.length){
+      wrap.innerHTML = leaders.map(function(m){
+        return '<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;font-size:13.5px">'+esc(m.name)+'</div><input type="text" data-leaderkey="'+m.id+'" value="'+esc((sg.keys||{})[m.id]||'')+'" placeholder="—" style="width:70px;text-align:center;padding:6px;border-radius:6px;border:1.5px solid var(--line)"></div>';
+      }).join('');
+    } else {
+      wrap.innerHTML = '<p class="tiny-note" style="margin:0">Tick a vocal/lead position for someone on the Team tab to set a key per person here.</p>';
+    }
+    document.getElementById('libsong-overlay').classList.add('active');
+  }
+  document.getElementById('btn-cancel-libsong').addEventListener('click', function(){ document.getElementById('libsong-overlay').classList.remove('active'); });
+  document.getElementById('btn-save-libsong').addEventListener('click', async function(){
+    var title = document.getElementById('lb-title').value.trim();
+    if (!title){ toast('Add a title.'); return; }
+    var keys = {};
+    document.querySelectorAll('#lb-leader-keys [data-leaderkey]').forEach(function(inp){ if (inp.value.trim()) keys[inp.dataset.leaderkey] = inp.value.trim(); });
+    var data = { title: title, key: document.getElementById('lb-key').value.trim(), ccli: document.getElementById('lb-ccli').value.trim(), keys: keys };
+    try {
+      if (editingLibSongId) await db.collection('songLibrary').doc(editingLibSongId).set(data);
+      else await db.collection('songLibrary').add(data);
+      document.getElementById('libsong-overlay').classList.remove('active');
+      toast('Saved.');
+    } catch(err){ toast('Could not save.'); }
+  });
+  document.getElementById('btn-delete-libsong').addEventListener('click', async function(){
+    if (!editingLibSongId) return;
+    try {
+      await db.collection('songLibrary').doc(editingLibSongId).delete();
+      document.getElementById('libsong-overlay').classList.remove('active');
+      toast('Deleted.');
+    } catch(err){ toast('Could not delete.'); }
+  });
+
+  // ---------- rota: setup ----------
+  function saveConfigField(field, value){
+    var data = {}; data[field] = value;
+    return db.collection('config').doc('main').update(data).catch(function(){
+      var full = Object.assign({}, config); full[field] = value;
+      return db.collection('config').doc('main').set(full).catch(function(){ toast('Could not save.'); });
+    });
+  }
+  function renderSetup(){
+    var el = document.getElementById('setup-body'); if (!el) return;
+    if (!canEdit){
+      el.innerHTML = '<div class="panel-head"><div><h2 class="display">Setup</h2><p>Only team leads can change these settings.</p></div></div>' +
+        '<div class="empty-note">Positions: ' + esc((config.positions||[]).map(function(p){return p.name+' ('+(p.count||1)+')';}).join(', ')) + '</div>';
+      return;
+    }
+    var rows = (config.positions||[]).map(function(p,i){
+      return '<div class="sheet-row">' +
+        '<input type="text" value="'+esc(p.name)+'" data-posname="'+p.id+'" style="flex:1;padding:8px 10px;border-radius:6px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)">' +
+        '<input type="number" min="1" max="12" value="'+(p.count||1)+'" data-poscount="'+p.id+'" style="width:70px;padding:8px;border-radius:6px;border:1.5px solid var(--line);text-align:center;background:var(--card);color:var(--ink)">' +
+        '<button class="btn ghost small" data-posup="'+i+'" '+(i===0?'disabled':'')+'>&uarr;</button>' +
+        '<button class="btn ghost small" data-posdel="'+p.id+'">Remove</button>' +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">Setup</h2><p>Positions drive the roster slots, what each person can be ticked for, and the order in the message you send.</p></div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">' +
+        '<div class="card-block">' +
+          '<div class="field"><label>Church or team name</label><input id="cfg-church" value="'+esc(config.churchName||'')+'"></div>' +
+          '<div class="field"><label>Rehearsal time</label><input id="cfg-rehearsal" value="'+esc(config.rehearsal||'')+'" placeholder="Thursday 19:00"></div>' +
+          '<div class="field"><label>Flag songs repeated within (weeks)</label><input type="number" id="cfg-gap" min="0" max="26" value="'+(config.songGapWeeks||3)+'"></div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="filterbar" style="justify-content:space-between"><b style="font-size:15px">Positions</b><button class="btn ghost small" id="btn-add-position">+ Add position</button></div>' +
+          '<div class="sheet-list">'+rows+'</div>' +
+          '<p class="tiny-note" style="margin-top:10px">&ldquo;How many&rdquo; is how many slots of that position each service &mdash; three vocals means three slots.</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card-block" style="max-width:520px;margin-top:22px">' +
+        '<b style="display:block;margin-bottom:6px;font-size:15px">Team lead</b>' +
+        '<p class="tiny-note" style="margin:0">To make someone else a team lead, tick &ldquo;Team lead&rdquo; when editing their profile on the Team tab.</p>' +
+      '</div>';
+    var church = document.getElementById('cfg-church'), rehearsal = document.getElementById('cfg-rehearsal'), gap = document.getElementById('cfg-gap');
+    church.onblur = function(){ saveConfigField('churchName', church.value.trim()); };
+    rehearsal.onblur = function(){ saveConfigField('rehearsal', rehearsal.value.trim()); };
+    gap.onchange = function(){ saveConfigField('songGapWeeks', Math.max(0, +gap.value||3)); };
+    document.getElementById('btn-add-position').onclick = function(){
+      saveConfigField('positions', (config.positions||[]).concat([{id: uid(), name:'New position', count:1}]));
+    };
+    el.querySelectorAll('[data-posname]').forEach(function(inp){
+      inp.onblur = function(){
+        var positions = config.positions.map(function(p){ return p.id===inp.dataset.posname ? Object.assign({}, p, {name: inp.value.trim()||'Untitled'}) : p; });
+        saveConfigField('positions', positions);
+      };
+    });
+    el.querySelectorAll('[data-poscount]').forEach(function(inp){
+      inp.onchange = function(){
+        var v = Math.max(1, Math.min(12, +inp.value||1));
+        var positions = config.positions.map(function(p){ return p.id===inp.dataset.poscount ? Object.assign({}, p, {count: v}) : p; });
+        saveConfigField('positions', positions);
+      };
+    });
+    el.querySelectorAll('[data-posup]').forEach(function(b){
+      b.onclick = function(){
+        var i = +b.dataset.posup;
+        var positions = config.positions.slice();
+        var t = positions[i-1]; positions[i-1]=positions[i]; positions[i]=t;
+        saveConfigField('positions', positions);
+      };
+    });
+    el.querySelectorAll('[data-posdel]').forEach(function(b){
+      b.onclick = function(){
+        if (!confirm('Remove this position? Anyone ticked for it loses that tick.')) return;
+        saveConfigField('positions', config.positions.filter(function(p){ return p.id!==b.dataset.posdel; }));
+      };
+    });
   }
 
   // ---------- resources ----------
@@ -1321,7 +1687,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   function populateFeedbackWeeks(){
     var sel = document.getElementById('fb-week');
     var wks = recentSundays(10);
-    sel.innerHTML = wks.map(function(s){ return '<option value="' + weekId(s) + '">' + s.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'}) + '</option>'; }).join('');
+    sel.innerHTML = wks.map(function(s){ return '<option value="' + svcISO(s) + '">' + s.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'}) + '</option>'; }).join('');
   }
   document.getElementById('fb-week').addEventListener('change', renderFeedbackList);
 
@@ -1415,11 +1781,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       try {
         myId = await userNs.id();
         canEdit = await userNs.canEdit();
-        var me = await userNs.me();
-        document.getElementById('my-name-hint').textContent = me.name ? ('Signed in as ' + me.name) : 'Set your status below.';
       } catch(e){}
     }
-    if (!myId) document.getElementById('my-name-hint').textContent = 'Sign in to set your availability.';
 
     if (canEdit) document.getElementById('btn-add-song').style.display = '';
 
@@ -1429,14 +1792,6 @@ import { cloudinaryConfig } from './cloudinary-config.js';
           songs = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           renderSongs();
         }, function(){ toast('Could not load songs.'); });
-      } catch(e){}
-      try {
-        db.collection('chordsheets').onSnapshot(function(snap){
-          sheets = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
-          if (document.getElementById('chord-viewer').style.display === 'none'){
-            if (chordKeyFolder) renderSheetList(); else renderKeyFolders();
-          }
-        }, function(){ toast('Could not load chord sheets.'); });
       } catch(e){}
       try {
         db.collection('resources').onSnapshot(function(snap){
@@ -1450,8 +1805,33 @@ import { cloudinaryConfig } from './cloudinary-config.js';
           renderSuggestions();
         }, function(){ toast('Could not load suggestions.'); });
       } catch(e){}
+      try {
+        db.collection('config').doc('main').onSnapshot(function(doc){
+          if (doc.exists) config = Object.assign({}, config, doc.data());
+          renderSetup(); renderServiceViews();
+        }, function(){});
+      } catch(e){}
+      try {
+        db.collection('users').onSnapshot(function(snap){
+          teamUsers = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderTeam(); renderServiceViews();
+        }, function(){ toast('Could not load team.'); });
+      } catch(e){}
+      try {
+        db.collection('songLibrary').onSnapshot(function(snap){
+          songLibrary = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderSongLibrary(); renderServiceViews();
+        }, function(){ toast('Could not load song library.'); });
+      } catch(e){}
+      try {
+        db.collection('services').onSnapshot(function(snap){
+          services = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          ensureActiveService();
+          renderServiceViews();
+        }, function(){ toast('Could not load services.'); });
+      } catch(e){}
 
-      // seed songs once if empty (best-effort, only if this viewer can edit)
+      // seed songs + default config once if empty (best-effort, only if this viewer can edit)
       setTimeout(async function(){
         try {
           if (canEdit){
@@ -1459,18 +1839,13 @@ import { cloudinaryConfig } from './cloudinary-config.js';
             if (snap.empty){
               for (var i=0;i<SEED_SONGS.length;i++){ await db.collection('songs').add(SEED_SONGS[i]); }
             }
+            var cfgDoc = await db.collection('config').doc('main').get();
+            if (!cfgDoc.exists) await db.collection('config').doc('main').set(config);
           }
         } catch(e){}
       }, 600);
-    } else {
-      songs = SEED_SONGS.map(function(s,i){ var o = Object.assign({}, s); o.id = 'seed'+i; return o; });
-      renderSongs();
-      document.getElementById('sheet-list').innerHTML = '<div class="empty-note">Connect this page inside Claude to upload and save chord sheets.</div>';
-      document.getElementById('resource-list').innerHTML = '<div class="empty-note">Connect this page inside Claude to add resources.</div>';
     }
 
-    renderKeyFolders();
-    renderAvailability();
     populateFeedbackWeeks();
     renderFeedbackList();
   }

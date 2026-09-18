@@ -10,10 +10,15 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isTeamLead == true;
     }
+    function onlyAvailChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avail']);
+    }
 
     // Everyone signed in can read profiles (needed to show names in the
-    // team grid, feedback, suggestions). Users can create/update their own
-    // profile, but only a team lead can grant isTeamLead.
+    // team roster, availability grid, feedback, suggestions). Users can
+    // create/update their own profile (including their phone number and
+    // which positions they can cover), but only a team lead can grant
+    // isTeamLead or mark someone else's profile inactive.
     match /users/{userId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == userId
@@ -25,18 +30,35 @@ service cloud.firestore {
                     );
     }
 
-    // Song arrangements: everyone reads, only a team lead edits.
+    // Song arrangements (Practice Arrangements tab): everyone reads, only
+    // a team lead edits.
     match /songs/{songId} {
       allow read: if signedIn();
       allow write: if isTeamLead();
     }
 
-    // Chord sheets: everyone reads, any signed-in member can upload a new
-    // one, only a team lead can edit/delete.
-    match /chordsheets/{sheetId} {
+    // Song library (title/key/CCLI, used to build set lists): everyone
+    // reads, only a team lead edits.
+    match /songLibrary/{songId} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isTeamLead();
+      allow write: if isTeamLead();
+    }
+
+    // App-wide config: church name, rehearsal time, roster positions.
+    // Single doc, only a team lead edits.
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow write: if isTeamLead();
+    }
+
+    // Services: a specific dated/named event (a Sunday or a special
+    // occasion) with its roster assignment, availability, set list and
+    // notes. Team leads manage the service itself; any signed-in member
+    // may only ever touch their own availability answers on it.
+    match /services/{serviceId} {
+      allow read: if signedIn();
+      allow create, delete: if isTeamLead();
+      allow update: if isTeamLead() || (signedIn() && onlyAvailChanged());
     }
 
     // Resources: everyone reads, any signed-in member can add one, only a
@@ -45,14 +67,6 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn();
       allow update, delete: if isTeamLead();
-    }
-
-    // Availability: everyone reads the grid, each person can only write
-    // their own status.
-    match /availability/{docId} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Feedback: everyone reads, each person can only post as themselves,
