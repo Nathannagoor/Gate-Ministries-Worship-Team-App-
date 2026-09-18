@@ -527,6 +527,30 @@
   </div>
 </div>
 
+<!-- Add position modal -->
+<div class="overlay" id="position-overlay">
+  <div class="modal">
+    <h3>Add a position</h3>
+    <div class="field">
+      <label>Quick pick</label>
+      <div id="pos-quick" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <div class="field-row" style="grid-template-columns:2fr 1fr">
+      <div class="field"><label>Position name</label><input id="pos-name" placeholder="e.g. Keys 2, Backing vocals, Violin"></div>
+      <div class="field"><label>How many slots</label><input type="number" id="pos-count" min="1" max="12" value="1"></div>
+    </div>
+    <p class="tiny-note" id="pos-existing-note" style="margin-top:-4px"></p>
+    <div class="field">
+      <label>Who can cover it (optional)</label>
+      <div id="pos-people" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-position">Cancel</button>
+      <button class="btn gold" id="btn-save-position">Add to roster</button>
+    </div>
+  </div>
+</div>
+
 <!-- Restore backup modal -->
 <div class="overlay" id="restore-overlay">
   <div class="modal">
@@ -1227,7 +1251,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         '<div><b>' + gaps.length + '</b><span>unfilled</span></div>' +
       '</div>' +
       (gaps.length ? '<div class="tiny-note" style="background:var(--no-soft);border:1px solid var(--no);color:var(--no);padding:8px 12px;border-radius:8px;margin:0 0 14px;">Still to fill: ' + esc(uniq(gaps.map(function(g){return g.name;})).join(', ')) + '</div>' : '') +
-      (canEdit ? '<div class="bar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"><button class="btn gold small" id="btn-fill-gaps">Fill empty slots</button><button class="btn ghost small" id="btn-fill-all">Rebuild from scratch</button><button class="btn ghost small" id="btn-clear-roster">Clear</button></div>' : '') +
+      (canEdit ? '<div class="bar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"><button class="btn gold small" id="btn-fill-gaps">Fill empty slots</button><button class="btn ghost small" id="btn-fill-all">Rebuild from scratch</button><button class="btn ghost small" id="btn-clear-roster">Clear</button><span style="flex:1"></span><button class="btn ghost small" id="btn-add-roster-pos">+ Add position</button></div>' : '') +
       '<div class="slot-sheet">' + rows + '</div>' +
       (canEdit ? '<div class="field" style="margin-top:16px"><label>Notes for the team</label><textarea id="svc-notes" style="min-height:70px;font-family:inherit">'+esc(s.notes||'')+'</textarea></div>' : (s.notes? '<div class="field" style="margin-top:16px"><label>Notes</label><p style="margin:0">'+esc(s.notes)+'</p></div>' : ''));
 
@@ -1235,6 +1259,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     if (lnk) lnk.onclick = function(e){ e.preventDefault(); gotoTab('setup'); };
     if (canEdit){
       document.getElementById('btn-fill-gaps').onclick = function(){ autoFill(false); };
+      document.getElementById('btn-add-roster-pos').onclick = openPositionModal;
       document.getElementById('btn-fill-all').onclick = function(){ autoFill(true); };
       document.getElementById('btn-clear-roster').onclick = function(){ saveServiceField(s, 'assign', {}).then(function(){ toast('Cleared.'); }); };
       var nt = document.getElementById('svc-notes');
@@ -1248,6 +1273,59 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       };
     });
   }
+
+  // ---------- rota: add position from the roster ----------
+  var QUICK_POSITIONS = ['Worship Leader','Vocals','Backing vocals','Keys','Acoustic','Electric','Bass','Drums','Percussion','Violin','Sound','Media'];
+  function openPositionModal(){
+    var quick = document.getElementById('pos-quick');
+    quick.innerHTML = QUICK_POSITIONS.map(function(n){ return '<button type="button" class="chip" data-quick="'+esc(n)+'">'+esc(n)+'</button>'; }).join('');
+    quick.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ document.getElementById('pos-name').value = c.dataset.quick; updatePositionNote(); }; });
+    document.getElementById('pos-name').value = '';
+    document.getElementById('pos-count').value = 1;
+    var people = teamUsers.filter(function(u){ return !u.inactive; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    var wrap = document.getElementById('pos-people');
+    wrap.innerHTML = people.length ? people.map(function(u){ return '<button type="button" class="chip" data-person="'+u.id+'">'+esc(u.name||'Unnamed')+'</button>'; }).join('') : '<span class="tiny-note" style="margin:0">Nobody has signed in yet.</span>';
+    wrap.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ c.classList.toggle('active'); }; });
+    updatePositionNote();
+    document.getElementById('position-overlay').classList.add('active');
+    document.getElementById('pos-name').focus();
+  }
+  function findPositionByName(name){
+    var n = (name||'').trim().toLowerCase();
+    return n ? (config.positions||[]).find(function(p){ return (p.name||'').trim().toLowerCase() === n; }) : null;
+  }
+  function updatePositionNote(){
+    var ex = findPositionByName(document.getElementById('pos-name').value);
+    document.getElementById('pos-existing-note').textContent = ex ? ('“' + ex.name + '” already exists with ' + (ex.count||1) + ' slot' + ((ex.count||1)===1?'':'s') + ' — this will add more slots to it.') : '';
+  }
+  document.getElementById('pos-name').addEventListener('input', updatePositionNote);
+  document.getElementById('btn-cancel-position').addEventListener('click', function(){ document.getElementById('position-overlay').classList.remove('active'); });
+  document.getElementById('btn-save-position').addEventListener('click', async function(){
+    var name = document.getElementById('pos-name').value.trim();
+    if (!name){ toast('Give the position a name.'); return; }
+    var n = Math.max(1, Math.min(12, +document.getElementById('pos-count').value || 1));
+    var existing = findPositionByName(name);
+    var pid, positions;
+    if (existing){
+      pid = existing.id;
+      positions = config.positions.map(function(p){ return p.id === pid ? Object.assign({}, p, { count: Math.min(12, (p.count||1) + n) }) : p; });
+    } else {
+      pid = uid();
+      positions = (config.positions||[]).concat([{ id: pid, name: name, count: n }]);
+    }
+    var picked = Array.prototype.slice.call(document.querySelectorAll('#pos-people .chip.active')).map(function(c){ return c.dataset.person; });
+    try {
+      await saveConfigField('positions', positions);
+      await Promise.all(picked.map(function(uidp){
+        var u = teamUsers.find(function(x){ return x.id === uidp; });
+        var roles = (u && u.roles || []);
+        if (roles.indexOf(pid) >= 0) return null;
+        return db.collection('users').doc(uidp).update({ roles: roles.concat([pid]) });
+      }));
+      document.getElementById('position-overlay').classList.remove('active');
+      toast(existing ? ('Added ' + n + ' more “' + existing.name + '” slot' + (n===1?'':'s') + '.') : ('Added “' + name + '” to the roster.'));
+    } catch(err){ toast('Could not add the position.'); }
+  });
 
   // ---------- rota: set list ----------
   function renderSetListTab(){
