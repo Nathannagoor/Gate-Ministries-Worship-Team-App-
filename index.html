@@ -210,7 +210,7 @@
   .slot.gap { background: var(--no-soft); }
   .slot.gap .pos { color: var(--no); }
   .slot .rest { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
-  @media (max-width: 760px) { .slot { grid-template-columns: 1fr; gap: 6px; } }
+  @media (max-width: 760px) { .slot { grid-template-columns: 1fr; gap: 6px; } .setup-grid { grid-template-columns: 1fr !important; } }
   .stat-bank { display: flex; gap: 22px; margin-bottom: 16px; flex-wrap: wrap; }
   .stat-bank b { display: block; font-family: 'Bebas Neue', sans-serif; font-size: 24px; }
   .stat-bank span { font-size: 12px; color: var(--ink-soft); }
@@ -523,6 +523,19 @@
       <button class="btn danger" id="btn-delete-libsong" style="display:none;margin-right:auto">Delete</button>
       <button class="btn ghost" id="btn-cancel-libsong">Cancel</button>
       <button class="btn gold" id="btn-save-libsong">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Restore backup modal -->
+<div class="overlay" id="restore-overlay">
+  <div class="modal">
+    <h3>Restore a backup</h3>
+    <p class="tiny-note" style="margin-top:0">This overwrites the positions, song library, services and team positions/phone numbers with what's in the backup. People are matched by their existing sign-in.</p>
+    <div class="field"><textarea id="restore-text" placeholder="Paste the contents of your backup file"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-restore">Cancel</button>
+      <button class="btn gold" id="btn-do-restore">Restore</button>
     </div>
   </div>
 </div>
@@ -1207,7 +1220,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
     el.innerHTML =
       '<div class="panel-head"><div><h2 class="display">' + esc(fmtSvcLong(s.date)) + ' &middot; ' + esc(s.time) + (s.label?' &middot; '+esc(s.label):'') + '</h2>' +
-      '<p>Auto-fill prefers whoever’s gone longest without serving and skips anyone who said they can’t make it.</p></div></div>' +
+      '<p>Auto-fill prefers whoever’s gone longest without serving and skips anyone who said they can’t make it.' + (canEdit ? ' <a href="#" id="lnk-setup" style="color:var(--gold-ink);font-weight:700">Edit positions in Setup</a>' : '') + '</p></div></div>' +
       '<div class="stat-bank">' +
         '<div><b>' + confirmed + '</b><span>confirmed</span></div>' +
         '<div><b>' + declined + '</b><span>said no</span></div>' +
@@ -1218,6 +1231,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       '<div class="slot-sheet">' + rows + '</div>' +
       (canEdit ? '<div class="field" style="margin-top:16px"><label>Notes for the team</label><textarea id="svc-notes" style="min-height:70px;font-family:inherit">'+esc(s.notes||'')+'</textarea></div>' : (s.notes? '<div class="field" style="margin-top:16px"><label>Notes</label><p style="margin:0">'+esc(s.notes)+'</p></div>' : ''));
 
+    var lnk = document.getElementById('lnk-setup');
+    if (lnk) lnk.onclick = function(e){ e.preventDefault(); gotoTab('setup'); };
     if (canEdit){
       document.getElementById('btn-fill-gaps').onclick = function(){ autoFill(false); };
       document.getElementById('btn-fill-all').onclick = function(){ autoFill(true); };
@@ -1495,73 +1510,142 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       return db.collection('config').doc('main').set(full).catch(function(){ toast('Could not save.'); });
     });
   }
+  function gotoTab(view){ var b = document.querySelector('.tab-btn[data-view="'+view+'"]'); if (b) b.click(); }
+
+  function exportBackup(){
+    var data = {
+      config: config,
+      songLibrary: songLibrary,
+      services: services,
+      team: teamUsers.map(function(u){ return { id: u.id, name: u.name||'', phone: u.phone||'', roles: u.roles||[], inactive: !!u.inactive }; })
+    };
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
+    a.download = 'worship-hub-backup-' + svcISO(new Date()) + '.json';
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+  }
+  document.getElementById('btn-cancel-restore').addEventListener('click', function(){ document.getElementById('restore-overlay').classList.remove('active'); });
+  document.getElementById('btn-do-restore').addEventListener('click', async function(){
+    var d;
+    try { d = JSON.parse(document.getElementById('restore-text').value); }
+    catch(e){ toast('That doesn’t look like a backup file.'); return; }
+    if (!d || typeof d !== 'object' || (!d.config && !d.songLibrary && !d.services && !d.team)){ toast('That doesn’t look like a backup file.'); return; }
+    try {
+      if (d.config) await db.collection('config').doc('main').set(d.config);
+      var docs = [].concat((d.songLibrary||[]).map(function(x){ return ['songLibrary', x]; }), (d.services||[]).map(function(x){ return ['services', x]; }));
+      for (var i=0;i<docs.length;i++){
+        var item = docs[i][1]; if (!item || !item.id) continue;
+        var copy = Object.assign({}, item); delete copy.id;
+        await db.collection(docs[i][0]).doc(item.id).set(copy);
+      }
+      for (var j=0;j<(d.team||[]).length;j++){
+        var m = d.team[j]; if (!m || !m.id) continue;
+        try { await db.collection('users').doc(m.id).update({ name: m.name||'', phone: m.phone||'', roles: m.roles||[], inactive: !!m.inactive }); } catch(e){}
+      }
+      document.getElementById('restore-overlay').classList.remove('active');
+      toast('Backup restored.');
+    } catch(err){ toast('Could not restore (' + (err.code||err.message||'error') + ').'); }
+  });
+
+  async function removePosition(pid){
+    var p = (config.positions||[]).find(function(x){ return x.id === pid; }); if (!p) return;
+    var people = teamUsers.filter(function(u){ return (u.roles||[]).indexOf(pid) >= 0; });
+    var svcs = services.filter(function(sv){ return Object.keys(sv.assign||{}).some(function(k){ return k.split('#')[0] === pid; }); });
+    var msg = 'Remove “' + p.name + '”?';
+    if (people.length) msg += '\n' + people.length + ' ' + (people.length===1?'person loses':'people lose') + ' that position.';
+    if (svcs.length) msg += '\nIt is also cleared from ' + svcs.length + ' roster' + (svcs.length===1?'':'s') + '.';
+    if (!confirm(msg)) return;
+    try {
+      await saveConfigField('positions', config.positions.filter(function(x){ return x.id !== pid; }));
+      await Promise.all(people.map(function(u){ return db.collection('users').doc(u.id).update({ roles: (u.roles||[]).filter(function(r){ return r !== pid; }) }); }));
+      await Promise.all(svcs.map(function(sv){
+        var assign = Object.assign({}, sv.assign);
+        Object.keys(assign).forEach(function(k){ if (k.split('#')[0] === pid) delete assign[k]; });
+        return db.collection('services').doc(sv.id).update({ assign: assign });
+      }));
+    } catch(err){ toast('Could not finish removing the position.'); }
+  }
+
   function renderSetup(){
     var el = document.getElementById('setup-body'); if (!el) return;
+    var positions = config.positions || [];
+    var totalSlots = positions.reduce(function(n,p){ return n + (p.count||1); }, 0);
+    var preview = positions.map(function(p){ return '<span class="chip">' + esc(p.name) + (p.count>1 ? ' ×' + p.count : '') + '</span>'; }).join(' ');
+    var rosterCard =
+      '<div class="card-block" style="margin-top:18px">' +
+        '<b style="display:block;font-size:15px;margin-bottom:4px">What the roster looks like</b>' +
+        '<p class="tiny-note" style="margin:0 0 10px">' + totalSlots + ' slot' + (totalSlots===1?'':'s') + ' each service, in this order.</p>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">' + (preview || '<span class="tiny-note" style="margin:0">No positions yet.</span>') + '</div>' +
+        '<button class="btn gold small" id="btn-open-roster">Open roster &rarr;</button>' +
+      '</div>';
+
     if (!canEdit){
-      el.innerHTML = '<div class="panel-head"><div><h2 class="display">Setup</h2><p>Only team leads can change these settings.</p></div></div>' +
-        '<div class="empty-note">Positions: ' + esc((config.positions||[]).map(function(p){return p.name+' ('+(p.count||1)+')';}).join(', ')) + '</div>';
+      el.innerHTML = '<div class="panel-head"><div><h2 class="display">Setup</h2><p>Only team leads can change these settings. This is what the roster is built from.</p></div></div>' + rosterCard;
+      document.getElementById('btn-open-roster').onclick = function(){ gotoTab('roster'); };
       return;
     }
-    var rows = (config.positions||[]).map(function(p,i){
+
+    var rows = positions.map(function(p,i){
       return '<div class="sheet-row">' +
-        '<input type="text" value="'+esc(p.name)+'" data-posname="'+p.id+'" style="flex:1;padding:8px 10px;border-radius:6px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)">' +
-        '<input type="number" min="1" max="12" value="'+(p.count||1)+'" data-poscount="'+p.id+'" style="width:70px;padding:8px;border-radius:6px;border:1.5px solid var(--line);text-align:center;background:var(--card);color:var(--ink)">' +
-        '<button class="btn ghost small" data-posup="'+i+'" '+(i===0?'disabled':'')+'>&uarr;</button>' +
+        '<input type="text" value="'+esc(p.name)+'" data-posname="'+p.id+'" aria-label="Position name" style="flex:1;padding:8px 10px;border-radius:6px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)">' +
+        '<input type="number" min="1" max="12" value="'+(p.count||1)+'" data-poscount="'+p.id+'" aria-label="How many" style="width:70px;padding:8px;border-radius:6px;border:1.5px solid var(--line);text-align:center;background:var(--card);color:var(--ink)">' +
+        '<button class="btn ghost small" data-posup="'+i+'" '+(i===0?'disabled':'')+' aria-label="Move up">&uarr;</button>' +
         '<button class="btn ghost small" data-posdel="'+p.id+'">Remove</button>' +
       '</div>';
     }).join('');
+
     el.innerHTML =
-      '<div class="panel-head"><div><h2 class="display">Setup</h2><p>Positions drive the roster slots, what each person can be ticked for, and the order in the message you send.</p></div></div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">' +
-        '<div class="card-block">' +
-          '<div class="field"><label>Church or team name</label><input id="cfg-church" value="'+esc(config.churchName||'')+'"></div>' +
-          '<div class="field"><label>Rehearsal time</label><input id="cfg-rehearsal" value="'+esc(config.rehearsal||'')+'" placeholder="Thursday 19:00"></div>' +
-          '<div class="field"><label>Flag songs repeated within (weeks)</label><input type="number" id="cfg-gap" min="0" max="26" value="'+(config.songGapWeeks||3)+'"></div>' +
+      '<div class="panel-head"><div><h2 class="display">Setup</h2><p>These positions drive everything &mdash; the roster slots, what each person can be ticked for, and the order they appear in the message you send.</p></div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start" class="setup-grid">' +
+        '<div>' +
+          '<div class="card-block">' +
+            '<div class="field"><label>Church or team name</label><input id="cfg-church" value="'+esc(config.churchName||'')+'" placeholder="GATE Ministries Sandton"></div>' +
+            '<div class="field"><label>Rehearsal time</label><input id="cfg-rehearsal" value="'+esc(config.rehearsal||'')+'" placeholder="Thursday 19:00"></div>' +
+            '<div class="field" style="margin-bottom:0"><label>Flag songs repeated within</label><input type="number" id="cfg-gap" min="0" max="26" value="'+(config.songGapWeeks||3)+'"><div class="tiny-note" style="margin:4px 0 0">weeks</div></div>' +
+          '</div>' +
+          '<div class="card-block" style="margin-top:18px">' +
+            '<b style="display:block;font-size:15px;margin-bottom:4px">Your data</b>' +
+            '<p class="tiny-note" style="margin:0 0 12px">Everything lives in your shared Firebase database. Export a backup before you change anything big.</p>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="btn-export-backup">Export backup</button><button class="btn ghost small" id="btn-restore-backup">Restore backup</button></div>' +
+          '</div>' +
+          rosterCard +
         '</div>' +
         '<div>' +
-          '<div class="filterbar" style="justify-content:space-between"><b style="font-size:15px">Positions</b><button class="btn ghost small" id="btn-add-position">+ Add position</button></div>' +
+          '<div class="filterbar" style="justify-content:space-between;margin-bottom:10px"><b style="font-size:15px">Positions</b><button class="btn ghost small" id="btn-add-position">+ Add position</button></div>' +
           '<div class="sheet-list">'+rows+'</div>' +
-          '<p class="tiny-note" style="margin-top:10px">&ldquo;How many&rdquo; is how many slots of that position each service &mdash; three vocals means three slots.</p>' +
+          '<p class="tiny-note" style="margin-top:10px">&ldquo;How many&rdquo; is how many of that position you roster each service &mdash; three vocals means three slots.</p>' +
         '</div>' +
-      '</div>' +
-      '<div class="card-block" style="max-width:520px;margin-top:22px">' +
-        '<b style="display:block;margin-bottom:6px;font-size:15px">Team lead</b>' +
-        '<p class="tiny-note" style="margin:0">To make someone else a team lead, tick &ldquo;Team lead&rdquo; when editing their profile on the Team tab.</p>' +
       '</div>';
+
     var church = document.getElementById('cfg-church'), rehearsal = document.getElementById('cfg-rehearsal'), gap = document.getElementById('cfg-gap');
-    church.onblur = function(){ saveConfigField('churchName', church.value.trim()); };
-    rehearsal.onblur = function(){ saveConfigField('rehearsal', rehearsal.value.trim()); };
-    gap.onchange = function(){ saveConfigField('songGapWeeks', Math.max(0, +gap.value||3)); };
+    church.onchange = function(){ saveConfigField('churchName', church.value.trim()); };
+    rehearsal.onchange = function(){ saveConfigField('rehearsal', rehearsal.value.trim()); };
+    gap.onchange = function(){ saveConfigField('songGapWeeks', Math.max(0, Math.min(26, +gap.value||0))); };
+    document.getElementById('btn-open-roster').onclick = function(){ gotoTab('roster'); };
+    document.getElementById('btn-export-backup').onclick = exportBackup;
+    document.getElementById('btn-restore-backup').onclick = function(){ document.getElementById('restore-text').value = ''; document.getElementById('restore-overlay').classList.add('active'); };
     document.getElementById('btn-add-position').onclick = function(){
-      saveConfigField('positions', (config.positions||[]).concat([{id: uid(), name:'New position', count:1}]));
+      saveConfigField('positions', positions.concat([{id: uid(), name:'New position', count:1}]));
     };
     el.querySelectorAll('[data-posname]').forEach(function(inp){
-      inp.onblur = function(){
-        var positions = config.positions.map(function(p){ return p.id===inp.dataset.posname ? Object.assign({}, p, {name: inp.value.trim()||'Untitled'}) : p; });
-        saveConfigField('positions', positions);
+      inp.onchange = function(){
+        saveConfigField('positions', positions.map(function(p){ return p.id===inp.dataset.posname ? Object.assign({}, p, {name: inp.value.trim()||'Untitled'}) : p; }));
       };
     });
     el.querySelectorAll('[data-poscount]').forEach(function(inp){
       inp.onchange = function(){
         var v = Math.max(1, Math.min(12, +inp.value||1));
-        var positions = config.positions.map(function(p){ return p.id===inp.dataset.poscount ? Object.assign({}, p, {count: v}) : p; });
-        saveConfigField('positions', positions);
+        saveConfigField('positions', positions.map(function(p){ return p.id===inp.dataset.poscount ? Object.assign({}, p, {count: v}) : p; }));
       };
     });
     el.querySelectorAll('[data-posup]').forEach(function(b){
       b.onclick = function(){
-        var i = +b.dataset.posup;
-        var positions = config.positions.slice();
-        var t = positions[i-1]; positions[i-1]=positions[i]; positions[i]=t;
-        saveConfigField('positions', positions);
+        var i = +b.dataset.posup, next = positions.slice(), t = next[i-1]; next[i-1] = next[i]; next[i] = t;
+        saveConfigField('positions', next);
       };
     });
-    el.querySelectorAll('[data-posdel]').forEach(function(b){
-      b.onclick = function(){
-        if (!confirm('Remove this position? Anyone ticked for it loses that tick.')) return;
-        saveConfigField('positions', config.positions.filter(function(p){ return p.id!==b.dataset.posdel; }));
-      };
-    });
+    el.querySelectorAll('[data-posdel]').forEach(function(b){ b.onclick = function(){ removePosition(b.dataset.posdel); }; });
   }
 
   // ---------- resources ----------
