@@ -1,8 +1,8 @@
 # GATE Sandton Worship Team Hub
 
 A static site (plain HTML/CSS/JS) for the worship team: song arrangements,
-a roster/rota with auto-fill, availability per service, set lists, a song
-library, WhatsApp-ready team messages, resources, and feedback/suggestions. Backed by Firebase (Firestore + Auth) for data/sign-in
+a roster/rota with auto-fill, availability per service, per-service
+arrangements (the set list), a song library, WhatsApp-ready team messages, resources, and feedback/suggestions. Backed by Firebase (Firestore + Auth) for data/sign-in
 and Cloudinary for file uploads (PDFs, video, audio, images, or any other
 file type), so everything syncs
 live between everyone who opens the site.
@@ -91,10 +91,10 @@ is allowed by default).
 
 | Collection      | Written by                          | Notes |
 |-----------------|--------------------------------------|-------|
-| `songs`         | team leads only                      | practice arrangements (Arrangements tab) |
+| `songs`         | team leads only                      | the arrangement for each service (`serviceId`, `order`, key, tempo, leader, instrument notes); this is the set list |
 | `songLibrary`   | team leads only                      | title, default key, CCLI, per-vocalist keys; feeds set lists |
 | `config/main`   | team leads only                      | church name, rehearsal time, roster positions (name + slot count), song repeat window |
-| `services`      | team leads (all fields); any member (their own `avail` answers only) | a dated/named service or special event: roster `assign`, `avail`, `set` list, `notes` |
+| `services`      | team leads (all fields); any member (their own `avail` answers only) | a dated/named service or special event: roster `assign`, `avail`, `notes` |
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
 | `feedback`      | each user, own doc only              | set feedback per Sunday |
 | `suggestions`   | each user (create own), team leads (update status) | song suggestions |

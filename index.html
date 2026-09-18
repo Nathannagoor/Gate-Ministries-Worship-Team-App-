@@ -270,7 +270,7 @@
     <div>
       <div class="church-name">GATE MINISTRIES SANDTON</div>
       <h1 class="brand-title display">WORSHIP TEAM HUB</h1>
-      <div class="brand-sub">Arrangements &middot; Roster &middot; Set lists &middot; Availability</div>
+      <div class="brand-sub">Arrangements &middot; Roster &middot; Availability</div>
     </div>
     <div id="account-box" style="margin-left:auto; display:flex; align-items:center; gap:10px;"></div>
   </div>
@@ -278,7 +278,6 @@
     <button class="tab-btn active" data-view="arrangements">Arrangements</button>
     <button class="tab-btn" data-view="roster">Roster</button>
     <button class="tab-btn" data-view="availability">Availability</button>
-    <button class="tab-btn" data-view="setlist">Set List</button>
     <button class="tab-btn" data-view="send">Send</button>
     <button class="tab-btn" data-view="team">Team</button>
     <button class="tab-btn" data-view="songlibrary">Song Library</button>
@@ -295,10 +294,11 @@
 
   <!-- ARRANGEMENTS -->
   <section id="view-arrangements" class="view active">
+    <div id="service-switcher-arrangements"></div>
     <div class="panel-head">
       <div>
         <h2 class="display">Practice Arrangements</h2>
-        <p>Keys, tempos and instrument notes for this set.</p>
+        <p>The songs for the selected service &mdash; keys, tempos and instrument notes. Add a song to build that week&rsquo;s set.</p>
       </div>
       <button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button>
     </div>
@@ -316,12 +316,6 @@
   <section id="view-roster" class="view">
     <div id="service-switcher-roster"></div>
     <div id="roster-body"></div>
-  </section>
-
-  <!-- SET LIST -->
-  <section id="view-setlist" class="view">
-    <div id="service-switcher-setlist"></div>
-    <div id="setlist-body"></div>
   </section>
 
   <!-- SEND -->
@@ -404,6 +398,7 @@
 <div class="overlay" id="song-overlay">
   <div class="modal">
     <h3 id="song-modal-title">Add song</h3>
+    <div class="field" id="f-library-field"><label>Pick from song library (optional)</label><select id="f-library"></select></div>
     <div class="field"><label>Title</label><input id="f-title" placeholder="Song title"></div>
     <div class="field-row">
       <div class="field"><label>Category</label>
@@ -813,17 +808,51 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
   function songBadgeColor(idx){ return BADGE_COLORS[idx % BADGE_COLORS.length]; }
 
+  // ---- arrangements are per service ----
+  function nextSundayInclusiveISO(){ var d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); return svcISO(d); }
+  function effSvc(song){ return song.serviceId || ('sunday-' + nextSundayInclusiveISO()); }
+  function arrSongs(serviceId){
+    return songs.filter(function(x){ return effSvc(x) === serviceId; }).sort(function(a,b){ return (a.order||0)-(b.order||0); });
+  }
+  function lastPlayedBefore(title, svc){
+    var key = (title||'').trim().toLowerCase(), best = null;
+    if (!key || !svc) return null;
+    songs.forEach(function(x){
+      if ((x.title||'').trim().toLowerCase() !== key || effSvc(x) === svc.id) return;
+      var other = services.find(function(v){ return v.id === effSvc(x); });
+      if (other && other.date < svc.date && (!best || best < other.date)) best = other.date;
+    });
+    return best;
+  }
+  async function moveSong(id, dir){
+    var list = arrSongs(activeServiceId);
+    var i = list.findIndex(function(x){ return x.id === id; }), j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    var t = list[i]; list[i] = list[j]; list[j] = t;
+    try {
+      await Promise.all(list.map(function(x, n){
+        return (x.order !== n+1 || !x.serviceId) ? db.collection('songs').doc(x.id).update({ order: n+1, serviceId: activeServiceId }) : null;
+      }));
+    } catch(err){ toast('Could not reorder.'); }
+  }
+
   function renderSongs(){
+    renderServiceSwitcher('service-switcher-arrangements');
     var grid = document.getElementById('song-grid');
     grid.innerHTML = '';
-    var list = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    var svc = curService();
+    var full = svc ? arrSongs(svc.id) : [];
+    var list = full.slice();
     if (songFilter !== 'all') list = list.filter(function(s){ return s.category === songFilter; });
     if (globalSearch) list = list.filter(function(s){ return (s.title||'').toLowerCase().indexOf(globalSearch) >= 0; });
     if (!list.length){
-      grid.innerHTML = '<div class="empty-note">' + (globalSearch ? 'No songs match your search.' : 'No songs yet' + (canEdit ? ' &mdash; add the first one.' : ' for this set.')) + '</div>';
+      grid.innerHTML = '<div class="empty-note">' + (globalSearch ? 'No songs match your search.' : (svc ? 'No songs for this service yet' + (canEdit ? ' &mdash; add the first one.' : '.') : 'No service selected.')) + '</div>';
+      renderLeaderLegend(); renderLeaderOverview();
       return;
     }
-    list.forEach(function(s, idx){
+    var gapW = config.songGapWeeks || 3;
+    list.forEach(function(s){
+      var pos = full.indexOf(s);
       var card = document.createElement('div');
       card.className = 'song-card';
       var catColor = CAT_COLOR[s.category] || 'var(--navy-800)';
@@ -831,15 +860,18 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       var leaderIcon = lc ? '&#127908;' : '&#128101;';
       var leaderDot = lc ? '<span style="width:8px;height:8px;border-radius:50%;background:' + lc + ';display:inline-block;margin-right:2px;"></span>' : '';
       var leaderStyle = lc ? ' style="background:' + hexToRgba(lc, 0.14) + '"' : '';
+      var lastD = lastPlayedBefore(s.title, svc);
+      var w = lastD ? weeksBetweenISO(lastD, svc.date) : null;
+      var warn = (w !== null && w < gapW) ? '<div style="font-size:10.5px;font-weight:700;color:var(--no);margin-top:2px">played ' + w + ' week' + (w===1?'':'s') + ' ago</div>' : '';
       card.innerHTML =
         '<div class="song-card-head">' +
-          '<div class="song-num" style="background:' + songBadgeColor(idx) + '">' + (s.order||idx+1) + '</div>' +
-          '<div><h3>' + esc(s.title) + '</h3><div class="song-cat-tag" style="color:' + catColor + '">' + esc(s.category||'') + '</div></div>' +
+          '<div class="song-num" style="background:' + songBadgeColor(pos) + '">' + (pos+1) + '</div>' +
+          '<div><h3>' + esc(s.title) + '</h3><div class="song-cat-tag" style="color:' + catColor + '">' + esc(s.category||'') + '</div>' + warn + '</div>' +
         '</div>' +
         '<div class="song-meta-row">' +
           '<div><div class="lbl">KEY</div><div class="val">' + esc(s.key||'&mdash;') + '</div></div>' +
           '<div><div class="lbl">TEMPO</div><div class="val">' + esc(s.tempo||'&mdash;') + '</div></div>' +
-          '<div><div class="lbl">TIME</div><div class="val">' + (s.timeSig||'&mdash;') + '</div></div>' +
+          '<div><div class="lbl">TIME</div><div class="val">' + esc(s.timeSig||'&mdash;') + '</div></div>' +
         '</div>' +
         '<div class="leader-row' + (!lc ? ' all' : '') + '"' + leaderStyle + '>' + leaderIcon + ' ' + leaderDot + 'Leader: ' + esc(s.leaderName||'&mdash;') + '</div>' +
         (s.bvs ? '<div class="bv-row">&#128100; BVs: ' + esc(s.bvs) + '</div>' : '') +
@@ -854,6 +886,14 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
         editBtn.onclick = function(){ openSongModal(s); };
         actions.appendChild(editBtn);
+        var up = document.createElement('button');
+        up.className = 'btn ghost small'; up.innerHTML = '&uarr;'; up.disabled = pos === 0; up.title = 'Move earlier';
+        up.onclick = function(){ moveSong(s.id, -1); };
+        actions.appendChild(up);
+        var down = document.createElement('button');
+        down.className = 'btn ghost small'; down.innerHTML = '&darr;'; down.disabled = pos === full.length-1; down.title = 'Move later';
+        down.onclick = function(){ moveSong(s.id, 1); };
+        actions.appendChild(down);
       }
       grid.appendChild(card);
     });
@@ -864,7 +904,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   function renderLeaderLegend(){
     var el = document.getElementById('leader-legend');
     if (!el) return;
-    var all = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    var all = arrSongs(activeServiceId);
     if (!all.length){ el.innerHTML = ''; return; }
     var seen = {};
     var html = '<span>Leaders:</span>';
@@ -881,7 +921,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   function renderLeaderOverview(){
     var el = document.getElementById('leader-overview');
     if (!el) return;
-    var list = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    var list = arrSongs(activeServiceId);
     if (!list.length){ el.innerHTML = ''; return; }
     var html = '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;color:var(--ink-soft);margin:24px 0 8px;">QUICK LEADER OVERVIEW</div>' +
       '<div style="display:flex;overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card);box-shadow:var(--shadow);">';
@@ -916,7 +956,20 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
   // ---------- song modal ----------
   var songOverlay = document.getElementById('song-overlay');
+  function libraryKeyFor(lib, leaderText){
+    var n = (leaderText||'').trim().toLowerCase();
+    if (!lib || !n) return '';
+    var u = teamUsers.find(function(x){ return (x.name||'').trim().toLowerCase() === n; });
+    return (u && lib.keys && lib.keys[u.id]) || '';
+  }
+  function applyLibrarySelection(fromLeader){
+    var lib = songLibrary.find(function(x){ return x.id === document.getElementById('f-library').value; });
+    if (!lib) return;
+    if (!fromLeader) document.getElementById('f-title').value = lib.title || '';
+    document.getElementById('f-key').value = libraryKeyFor(lib, document.getElementById('f-leader').value) || lib.key || '';
+  }
   function openSongModal(song){
+    if (!song && !activeServiceId){ toast('Add a service first.'); return; }
     editingSongId = song ? song.id : null;
     document.getElementById('song-modal-title').textContent = song ? 'Edit song' : 'Add song';
     document.getElementById('btn-delete-song').style.display = song ? '' : 'none';
@@ -926,11 +979,21 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     f('f-keys', song && song.keys); f('f-pads', song && song.pads); f('f-acoustic1', song && song.acoustic1);
     f('f-electric1', song && song.electric1); f('f-electric2', song && song.electric2);
     document.getElementById('f-category').value = (song && song.category) || 'Praise';
+    var libField = document.getElementById('f-library-field');
+    var libs = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
+    libField.style.display = (!song && libs.length) ? '' : 'none';
+    document.getElementById('f-library').innerHTML = '<option value="">— or type a new song below —</option>' + libs.map(function(l){ return '<option value="'+l.id+'">'+esc(l.title)+(l.key?' ('+esc(l.key)+')':'')+'</option>'; }).join('');
     songOverlay.classList.add('active');
   }
+  document.getElementById('f-library').addEventListener('change', function(){ applyLibrarySelection(false); });
+  document.getElementById('f-leader').addEventListener('input', function(){ applyLibrarySelection(true); });
   document.getElementById('btn-add-song').addEventListener('click', function(){ openSongModal(null); });
   document.getElementById('btn-cancel-song').addEventListener('click', function(){ songOverlay.classList.remove('active'); });
   document.getElementById('btn-save-song').addEventListener('click', async function(){
+    var existing = editingSongId ? songs.find(function(s){ return s.id === editingSongId; }) : null;
+    var serviceId = existing ? effSvc(existing) : activeServiceId;
+    if (!serviceId){ toast('Add a service first.'); return; }
+    var inService = arrSongs(serviceId);
     var data = {
       title: document.getElementById('f-title').value.trim() || 'Untitled',
       category: document.getElementById('f-category').value,
@@ -944,7 +1007,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       acoustic1: document.getElementById('f-acoustic1').value.trim(),
       electric1: document.getElementById('f-electric1').value.trim(),
       electric2: document.getElementById('f-electric2').value.trim(),
-      order: editingSongId ? (songs.find(function(s){return s.id===editingSongId}) || {}).order || songs.length+1 : songs.length+1
+      serviceId: serviceId,
+      order: existing ? (existing.order || inService.length) : (inService.reduce(function(m,x){ return Math.max(m, x.order||0); }, 0) + 1)
     };
     try {
       if (!db) { toast('Not connected.'); return; }
@@ -1332,66 +1396,6 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     } catch(err){ toast('Could not add the position.'); }
   });
 
-  // ---------- rota: set list ----------
-  function renderSetListTab(){
-    var el = document.getElementById('setlist-body'); if (!el) return;
-    renderServiceSwitcher('service-switcher-setlist');
-    var s = curService();
-    if (!s){
-      el.innerHTML = '<div class="empty-note">No services yet' + (canEdit?' &mdash; add one above.':'.') + '</div>';
-      return;
-    }
-    var set = s.set || [];
-    var lib = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
-    var leadId = (s.assign||{})[((config.positions||[])[0]||{}).id + '#0'];
-
-    var gapW = config.songGapWeeks || 3;
-    var recent = {};
-    svcList().forEach(function(x){
-      if (x.id===s.id || x.date >= s.date) return;
-      (x.set||[]).forEach(function(it){ if (!recent[it.songId] || recent[it.songId] < x.date) recent[it.songId]=x.date; });
-    });
-
-    var rows = set.map(function(it, i){
-      var sg = songLibrary.find(function(x){ return x.id===it.songId; });
-      if (!sg) return '';
-      var last = recent[it.songId];
-      var w = last ? weeksBetweenISO(last, s.date) : null;
-      var tooSoon = w!==null && w < gapW;
-      var suggested = leadId && sg.keys && sg.keys[leadId] ? sg.keys[leadId] : sg.key;
-      return '<div class="sheet-row">' +
-        '<div class="info"><b>' + (i+1) + '. ' + esc(sg.title) + '</b>' +
-        '<span>' + (last ? (tooSoon ? '<span style="color:var(--no)">played '+w+' week'+(w===1?'':'s')+' ago</span>' : 'last played '+esc(fmtSvc(last))) : 'not played before') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + '</span></div>' +
-        (canEdit ?
-          '<input type="text" value="'+esc(it.key||suggested||'')+'" data-setkey="'+i+'" style="width:64px;text-align:center;padding:6px;border-radius:6px;border:1.5px solid var(--line)">' +
-          '<button class="btn ghost small" data-up="'+i+'" '+(i===0?'disabled':'')+'>&uarr;</button>' +
-          '<button class="btn ghost small" data-down="'+i+'" '+(i===set.length-1?'disabled':'')+'>&darr;</button>' +
-          '<button class="btn ghost small" data-rm="'+i+'">Remove</button>'
-        : '<b>'+esc(it.key||suggested||'—')+'</b>') +
-      '</div>';
-    }).join('');
-
-    el.innerHTML =
-      '<div class="panel-head"><div><h2 class="display">Set List &middot; ' + esc(fmtSvc(s.date)) + '</h2>' +
-      '<p>Keys default to whoever’s leading. Anything sung in the last ' + gapW + ' weeks gets flagged.</p></div></div>' +
-      (canEdit ? '<div class="filterbar"><select id="add-libsong" style="max-width:280px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)"><option value="">Add a song&hellip;</option>' +
-        lib.map(function(sg){ return '<option value="'+sg.id+'">'+esc(sg.title)+(sg.key?' ('+esc(sg.key)+')':'')+'</option>'; }).join('') + '</select></div>' : '') +
-      (set.length ? '<div class="sheet-list">' + rows + '</div>' :
-        '<div class="empty-note">No songs yet' + (lib.length ? (canEdit?' &mdash; pick one above.':'.') : ' &mdash; add songs to the library first.') + '</div>');
-
-    var add = document.getElementById('add-libsong');
-    if (add) add.onchange = function(){
-      if (!add.value) return;
-      var sg = songLibrary.find(function(x){ return x.id===add.value; });
-      var newSet = set.concat([{songId: add.value, key: (leadId && sg.keys && sg.keys[leadId]) || sg.key || ''}]);
-      saveServiceField(s, 'set', newSet);
-    };
-    el.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){ var newSet=set.slice(); newSet.splice(+b.dataset.rm,1); saveServiceField(s,'set',newSet); }; });
-    el.querySelectorAll('[data-up]').forEach(function(b){ b.onclick = function(){ var i=+b.dataset.up; var newSet=set.slice(); var t=newSet[i-1]; newSet[i-1]=newSet[i]; newSet[i]=t; saveServiceField(s,'set',newSet); }; });
-    el.querySelectorAll('[data-down]').forEach(function(b){ b.onclick = function(){ var i=+b.dataset.down; var newSet=set.slice(); var t=newSet[i+1]; newSet[i+1]=newSet[i]; newSet[i]=t; saveServiceField(s,'set',newSet); }; });
-    el.querySelectorAll('[data-setkey]').forEach(function(inp){ inp.onchange = function(){ var newSet=set.slice(); newSet[+inp.dataset.setkey]=Object.assign({}, newSet[+inp.dataset.setkey], {key: inp.value.trim()}); saveServiceField(s,'set',newSet); }; });
-  }
-
   // ---------- rota: send ----------
   function buildRosterMessage(){
     var s = curService(); if (!s) return '';
@@ -1406,9 +1410,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     });
     var missing = uniq(rosterSlots().filter(function(x){ return !(s.assign||{})[x.key]; }).map(function(x){ return x.name; }));
     if (missing.length){ L.push(''); L.push('Still needed: ' + missing.join(', ')); }
-    if ((s.set||[]).length){
+    var setSongs = arrSongs(s.id);
+    if (setSongs.length){
       L.push(''); L.push('SET LIST');
-      s.set.forEach(function(it, i){ var sg = songLibrary.find(function(x){return x.id===it.songId;}); if (sg) L.push((i+1)+'. '+sg.title+(it.key?' — '+it.key:'')); });
+      setSongs.forEach(function(sg, i){ L.push((i+1)+'. '+sg.title+(sg.key?' \u2014 '+sg.key:'')+(sg.leaderName && sg.leaderName.toLowerCase()!=='all' ? ' ('+sg.leaderName+')' : '')); });
     }
     if (config.rehearsal){ L.push(''); L.push('Rehearsal: '+config.rehearsal); }
     if (s.notes){ L.push(''); L.push(s.notes); }
@@ -1421,9 +1426,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       var m = teamUsers.find(function(u){ return u.id===mid; });
       lines.push([s.date, s.time, x.count>1 ? x.name+' '+(x.idx+1) : x.name, m?m.name:'', m&&m.phone?m.phone:'']);
     });
-    (s.set||[]).forEach(function(it,i){
-      var sg = songLibrary.find(function(x){ return x.id===it.songId; });
-      if (sg) lines.push([s.date, s.time, 'Song '+(i+1), sg.title, it.key||'']);
+    arrSongs(s.id).forEach(function(sg,i){
+      lines.push([s.date, s.time, 'Song '+(i+1), sg.title, sg.key||'']);
     });
     var csv = lines.map(function(r){ return r.map(function(c){ return /[",\n]/.test(c) ? '"'+String(c).replace(/"/g,'""')+'"' : c; }).join(','); }).join('\n');
     var a = document.createElement('a');
@@ -1461,7 +1465,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     ensureActiveService();
     renderAvailabilityTab();
     renderRosterTab();
-    renderSetListTab();
+    renderSongs();
     renderSendTab();
   }
 
@@ -1526,10 +1530,14 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var el = document.getElementById('songlibrary-body'); if (!el) return;
     var lib = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
     var last = {};
-    svcList().forEach(function(x){ (x.set||[]).forEach(function(it){ if (!last[it.songId] || last[it.songId] < x.date) last[it.songId]=x.date; }); });
+    songs.forEach(function(sv){
+      var svc = services.find(function(v){ return v.id === effSvc(sv); });
+      var k = (sv.title||'').trim().toLowerCase();
+      if (svc && (!last[k] || last[k] < svc.date)) last[k] = svc.date;
+    });
     var rows = lib.map(function(sg){
       return '<div class="sheet-row"><div class="info"><b>' + esc(sg.title) + '</b>' +
-        '<span>' + (last[sg.id] ? 'last sung '+esc(fmtSvc(last[sg.id])) : 'never sung') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (sg.keys && Object.keys(sg.keys).length ? ' &middot; '+Object.keys(sg.keys).length+' vocalist key'+(Object.keys(sg.keys).length===1?'':'s') : '') + '</span></div>' +
+        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (sg.keys && Object.keys(sg.keys).length ? ' &middot; '+Object.keys(sg.keys).length+' vocalist key'+(Object.keys(sg.keys).length===1?'':'s') : '') + '</span></div>' +
         '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:16px">' + esc(sg.key||'—') + '</b>' +
         (canEdit ? '<button class="btn ghost small" data-libedit="'+sg.id+'">Edit</button>' : '') +
       '</div>';
@@ -1599,6 +1607,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var data = {
       config: config,
       songLibrary: songLibrary,
+      songs: songs,
       services: services,
       team: teamUsers.map(function(u){ return { id: u.id, name: u.name||'', phone: u.phone||'', roles: u.roles||[], inactive: !!u.inactive }; })
     };
@@ -1616,7 +1625,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     if (!d || typeof d !== 'object' || (!d.config && !d.songLibrary && !d.services && !d.team)){ toast('That doesn’t look like a backup file.'); return; }
     try {
       if (d.config) await db.collection('config').doc('main').set(d.config);
-      var docs = [].concat((d.songLibrary||[]).map(function(x){ return ['songLibrary', x]; }), (d.services||[]).map(function(x){ return ['services', x]; }));
+      var docs = [].concat((d.songLibrary||[]).map(function(x){ return ['songLibrary', x]; }), (d.services||[]).map(function(x){ return ['services', x]; }), (d.songs||[]).map(function(x){ return ['songs', x]; }));
       for (var i=0;i<docs.length;i++){
         var item = docs[i][1]; if (!item || !item.id) continue;
         var copy = Object.assign({}, item); delete copy.id;
@@ -2025,6 +2034,11 @@ import { cloudinaryConfig } from './cloudinary-config.js';
             }
             var cfgDoc = await db.collection('config').doc('main').get();
             if (!cfgDoc.exists) await db.collection('config').doc('main').set(config);
+            var allSongs = await db.collection('songs').get();
+            var stampId = 'sunday-' + nextSundayInclusiveISO();
+            for (var k=0;k<allSongs.docs.length;k++){
+              if (!allSongs.docs[k].data().serviceId) await db.collection('songs').doc(allSongs.docs[k].id).update({ serviceId: stampId });
+            }
           }
         } catch(e){}
       }, 600);
