@@ -282,7 +282,9 @@
       <button class="chip" data-filter="Praise">Praise</button>
       <button class="chip" data-filter="Worship">Worship</button>
     </div>
+    <div id="leader-legend" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;font-size:12.5px;font-weight:700;color:var(--ink-soft);align-items:center;"></div>
     <div class="song-grid" id="song-grid"></div>
+    <div id="leader-overview"></div>
   </section>
 
   <!-- CHORD LIBRARY -->
@@ -634,6 +636,19 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   var KEYS = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B'];
   var BADGE_COLORS = ['#2f7a4f','#6b46c1','#d9730d','#33417f'];
   var CAT_COLOR = { Praise: 'var(--praise)', Worship: 'var(--worship)' };
+  var LEADER_COLORS = ['#c98a1c','#2f8f5b','#33417f','#6b46c1','#cf5a2c','#1f7a72'];
+  var leaderColorCache = {};
+  function leaderColor(name){
+    var key = (name||'').trim();
+    if (!key || key.toLowerCase() === 'all') return null;
+    if (!leaderColorCache[key]) leaderColorCache[key] = LEADER_COLORS[Object.keys(leaderColorCache).length % LEADER_COLORS.length];
+    return leaderColorCache[key];
+  }
+  function hexToRgba(hex, alpha){
+    var h = hex.replace('#','');
+    var r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
 
   var SEED_SONGS = [
     {order:1,title:'Bless God',category:'Praise',key:'G',tempo:'72 BPM',timeSig:'4/4',leaderName:'Ryan',bvs:'Chorus onwards',keys:'Piano / EP',pads:'Organ &amp; pads',acoustic1:'Standard',electric1:'Clean, light reverb, chorus',electric2:'Clean, light reverb'},
@@ -704,6 +719,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       var card = document.createElement('div');
       card.className = 'song-card';
       var catColor = CAT_COLOR[s.category] || 'var(--navy-800)';
+      var lc = leaderColor(s.leaderName);
+      var leaderIcon = lc ? '&#127908;' : '&#128101;';
+      var leaderDot = lc ? '<span style="width:8px;height:8px;border-radius:50%;background:' + lc + ';display:inline-block;margin-right:2px;"></span>' : '';
+      var leaderStyle = lc ? ' style="background:' + hexToRgba(lc, 0.14) + '"' : '';
       card.innerHTML =
         '<div class="song-card-head">' +
           '<div class="song-num" style="background:' + songBadgeColor(idx) + '">' + (s.order||idx+1) + '</div>' +
@@ -714,7 +733,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
           '<div><div class="lbl">TEMPO</div><div class="val">' + esc(s.tempo||'&mdash;') + '</div></div>' +
           '<div><div class="lbl">TIME</div><div class="val">' + (s.timeSig||'&mdash;') + '</div></div>' +
         '</div>' +
-        '<div class="leader-row' + ((s.leaderName||'').toLowerCase()==='all' ? ' all' : '') + '">&#127908; Leader: ' + esc(s.leaderName||'&mdash;') + '</div>' +
+        '<div class="leader-row' + (!lc ? ' all' : '') + '"' + leaderStyle + '>' + leaderIcon + ' ' + leaderDot + 'Leader: ' + esc(s.leaderName||'&mdash;') + '</div>' +
         (s.bvs ? '<div class="bv-row">&#128100; BVs: ' + esc(s.bvs) + '</div>' : '') +
         '<div class="song-instruments">' +
           instLine('Keys', s.keys) + instLine('Pads', s.pads) + instLine('Acoustic', s.acoustic1) +
@@ -730,6 +749,46 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       }
       grid.appendChild(card);
     });
+    renderLeaderLegend();
+    renderLeaderOverview();
+  }
+
+  function renderLeaderLegend(){
+    var el = document.getElementById('leader-legend');
+    if (!el) return;
+    var all = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    if (!all.length){ el.innerHTML = ''; return; }
+    var seen = {};
+    var html = '<span>Leaders:</span>';
+    all.forEach(function(s){
+      var name = (s.leaderName||'').trim();
+      if (!name || name.toLowerCase() === 'all' || seen[name]) return;
+      seen[name] = true;
+      html += '<span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:' + leaderColor(name) + ';display:inline-block;"></span>' + esc(name) + '</span>';
+    });
+    html += '<span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;border:1.5px solid var(--ink-soft);display:inline-block;"></span>All</span>';
+    el.innerHTML = html;
+  }
+
+  function renderLeaderOverview(){
+    var el = document.getElementById('leader-overview');
+    if (!el) return;
+    var list = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    if (!list.length){ el.innerHTML = ''; return; }
+    var html = '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;color:var(--ink-soft);margin:24px 0 8px;">QUICK LEADER OVERVIEW</div>' +
+      '<div style="display:flex;overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card);box-shadow:var(--shadow);">';
+    list.forEach(function(s, idx){
+      var name = (s.leaderName||'').trim();
+      var lc = leaderColor(name);
+      var dot = lc ? '<span style="width:7px;height:7px;border-radius:50%;background:' + lc + ';display:inline-block;margin-right:4px;"></span>' : '';
+      html += '<div style="flex:1;min-width:100px;padding:10px 8px;text-align:center;' + (idx < list.length-1 ? 'border-right:1px solid var(--line);' : '') + '">' +
+        '<div style="font-size:11px;font-weight:800;color:var(--ink-soft)">' + (s.order||idx+1) + '</div>' +
+        '<div style="font-size:12px;font-weight:700;margin:2px 0 5px;">' + esc(s.title) + '</div>' +
+        '<div style="font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:3px;color:' + (lc || 'var(--ink-soft)') + ';font-weight:700;">' + dot + esc(name || 'All') + '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
   }
   function instLine(label, val){
     if (!val) return '';
