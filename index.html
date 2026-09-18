@@ -442,7 +442,7 @@
       <label>Sheet type</label>
       <div style="display:flex;gap:16px;font-size:13px;font-weight:600;padding-top:4px">
         <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="s-mode" value="text" id="s-mode-text" checked> Plain text (transposable)</label>
-        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="s-mode" value="pdf" id="s-mode-pdf"> PDF / scanned file</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="s-mode" value="pdf" id="s-mode-pdf"> Upload a file (PDF, image, or anything else)</label>
       </div>
     </div>
     <div id="s-text-fields">
@@ -457,9 +457,9 @@ Amazing grace, how sweet the sound"></textarea>
       </div>
     </div>
     <div class="field" id="s-pdf-field" style="display:none">
-      <label>PDF or image file</label>
-      <input type="file" id="s-pdf-file" accept=".pdf,application/pdf,image/*">
-      <div class="tiny-note">Uploaded to Cloudinary. PDFs/scans can't be auto-transposed &mdash; the chord library will show a direct "Open" link instead of the transpose viewer for this sheet. Editing an existing PDF sheet keeps its current file unless you choose a new one.</div>
+      <label>File</label>
+      <input type="file" id="s-pdf-file">
+      <div class="tiny-note">Uploaded to Cloudinary. Files uploaded here can't be auto-transposed &mdash; the chord library will show a direct "Open" link instead of the transpose viewer for this sheet. Editing an existing file sheet keeps its current file unless you choose a new one.</div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btn-delete-sheet" style="display:none;margin-right:auto">Delete</button>
@@ -860,7 +860,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     list.forEach(function(s){
       var row = document.createElement('div');
       row.className = 'sheet-row';
-      row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + (s.fileUrl ? ' &middot; PDF/scan' : '') + '</span></div>';
+      row.innerHTML = '<div class="info"><b>' + esc(s.title) + '</b><span>Original key ' + esc(s.originalKey) + (s.fileUrl ? ' &middot; file' : '') + '</span></div>';
       var actions = document.createElement('div');
       actions.style.display = 'flex'; actions.style.gap = '8px';
       if (s.fileUrl){
