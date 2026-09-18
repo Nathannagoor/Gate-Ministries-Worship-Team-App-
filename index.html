@@ -261,6 +261,9 @@
     <button class="tab-btn" data-view="resources">Resources</button>
     <button class="tab-btn" data-view="feedback">Feedback &amp; Suggestions</button>
   </nav>
+  <div style="padding:10px 0 14px;">
+    <input type="search" id="global-search" placeholder="Search songs or resources..." style="width:100%;max-width:320px;padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;font-size:13px;">
+  </div>
 </header>
 
 <main>
@@ -278,7 +281,6 @@
       <button class="chip active" data-filter="all">All</button>
       <button class="chip" data-filter="Praise">Praise</button>
       <button class="chip" data-filter="Worship">Worship</button>
-      <input type="search" id="song-search" placeholder="Search songs..." style="margin-left:auto;max-width:220px;padding:7px 12px;border-radius:20px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;">
     </div>
     <div class="song-grid" id="song-grid"></div>
   </section>
@@ -361,7 +363,6 @@
       <button class="chip" data-filter="Tutorial">Tutorials</button>
       <button class="chip" data-filter="Sheet Music">Sheet Music</button>
       <button class="chip" data-filter="Other">Other</button>
-      <input type="search" id="resource-search" placeholder="Search resources..." style="margin-left:auto;max-width:220px;padding:7px 12px;border-radius:20px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;">
     </div>
     <div class="sheet-list" id="resource-list"></div>
   </section>
@@ -653,8 +654,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   var suggestions = [];
   var resourceFilter = 'all';
   var songFilter = 'all';
-  var songSearch = '';
-  var resourceSearch = '';
+  var globalSearch = '';
   var chordFolder = 'Praise';
   var chordKeyFolder = null;
   var activeSheetId = null;
@@ -695,9 +695,9 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     grid.innerHTML = '';
     var list = songs.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
     if (songFilter !== 'all') list = list.filter(function(s){ return s.category === songFilter; });
-    if (songSearch) list = list.filter(function(s){ return (s.title||'').toLowerCase().indexOf(songSearch) >= 0; });
+    if (globalSearch) list = list.filter(function(s){ return (s.title||'').toLowerCase().indexOf(globalSearch) >= 0; });
     if (!list.length){
-      grid.innerHTML = '<div class="empty-note">' + (songSearch ? 'No songs match your search.' : 'No songs yet' + (canEdit ? ' &mdash; add the first one.' : ' for this set.')) + '</div>';
+      grid.innerHTML = '<div class="empty-note">' + (globalSearch ? 'No songs match your search.' : 'No songs yet' + (canEdit ? ' &mdash; add the first one.' : ' for this set.')) + '</div>';
       return;
     }
     list.forEach(function(s, idx){
@@ -744,10 +744,6 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     document.querySelectorAll('#song-filters .chip').forEach(function(c){ c.classList.remove('active'); });
     b.classList.add('active');
     songFilter = b.dataset.filter;
-    renderSongs();
-  });
-  document.getElementById('song-search').addEventListener('input', function(e){
-    songSearch = e.target.value.trim().toLowerCase();
     renderSongs();
   });
 
@@ -1122,8 +1118,9 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     resourceFilter = b.dataset.filter;
     renderResources();
   });
-  document.getElementById('resource-search').addEventListener('input', function(e){
-    resourceSearch = e.target.value.trim().toLowerCase();
+  document.getElementById('global-search').addEventListener('input', function(e){
+    globalSearch = e.target.value.trim().toLowerCase();
+    renderSongs();
     renderResources();
   });
 
@@ -1141,10 +1138,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var wrap = document.getElementById('resource-list');
     var list = resources.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
     if (resourceFilter !== 'all') list = list.filter(function(r){ return r.category === resourceFilter; });
-    if (resourceSearch) list = list.filter(function(r){
-      return (r.title||'').toLowerCase().indexOf(resourceSearch) >= 0 || (r.description||'').toLowerCase().indexOf(resourceSearch) >= 0;
+    if (globalSearch) list = list.filter(function(r){
+      return (r.title||'').toLowerCase().indexOf(globalSearch) >= 0 || (r.description||'').toLowerCase().indexOf(globalSearch) >= 0;
     });
-    if (!list.length){ wrap.innerHTML = '<div class="empty-note">' + (resourceSearch ? 'No resources match your search.' : 'No resources here yet.') + '</div>'; return; }
+    if (!list.length){ wrap.innerHTML = '<div class="empty-note">' + (globalSearch ? 'No resources match your search.' : 'No resources here yet.') + '</div>'; return; }
     wrap.innerHTML = '';
     list.forEach(function(r){
       var row = document.createElement('div');
