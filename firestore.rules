@@ -79,10 +79,13 @@ service cloud.firestore {
     }
 
     // Feedback: everyone reads, each person can only post as themselves,
-    // and feedback isn't editable after posting.
+    // and only the author can edit or delete their own feedback.
     match /feedback/{docId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update: if signedIn() && resource.data.authorId == request.auth.uid
+                    && request.resource.data.authorId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
     }
 
     // Song suggestions: everyone reads, each person submits as themselves,

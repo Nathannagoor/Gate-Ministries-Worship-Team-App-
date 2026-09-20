@@ -511,7 +511,7 @@
     </div>
     <div class="field"><label>CCLI number (optional)</label><input id="lb-ccli" placeholder="7117726"></div>
     <div class="field">
-      <label>Key when each vocalist leads it (optional)</label>
+      <label>Key for each member (blank = default key)</label>
       <div id="lb-leader-keys" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
     <div class="modal-actions">
@@ -1716,6 +1716,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   });
 
   // ---------- rota: song library ----------
+  var expandedLib = {};
   function renderSongLibrary(){
     var el = document.getElementById('songlibrary-body'); if (!el) return;
     var lib = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
@@ -1725,19 +1726,44 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       var k = (sv.title||'').trim().toLowerCase();
       if (svc && (!last[k] || last[k] < svc.date)) last[k] = svc.date;
     });
+    var members = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
     var rows = lib.map(function(sg){
-      return '<div class="sheet-row"><div class="info"><b>' + esc(sg.title) + '</b>' +
-        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (sg.keys && Object.keys(sg.keys).length ? ' &middot; '+Object.keys(sg.keys).length+' vocalist key'+(Object.keys(sg.keys).length===1?'':'s') : '') + '</span></div>' +
+      var open = !!expandedLib[sg.id];
+      var overrides = sg.keys ? Object.keys(sg.keys).filter(function(k){ return sg.keys[k]; }).length : 0;
+      var panel = '';
+      if (open){
+        panel = '<div class="lib-panel" style="flex-basis:100%;width:100%;border-top:1px solid var(--line);padding-top:12px;margin-top:2px">' +
+          '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">Default key: <b style="color:var(--ink)">' + esc(sg.key||'—') + '</b> &mdash; each member’s own key overrides it.</div>' +
+          (members.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px">' + members.map(function(m){
+            var own = sg.keys && sg.keys[m.id];
+            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:' + (own ? 'var(--card)' : 'transparent') + '">' +
+              '<span style="font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.name||'Unnamed') + '</span>' +
+              (own ? '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:17px">' + esc(own) + '</b>' : '<span style="font-size:12px;color:var(--ink-soft)">' + esc(sg.key||'—') + ' (default)</span>') +
+            '</div>';
+          }).join('') + '</div>' : '<p class="tiny-note" style="margin:0">Nobody is on the team yet.</p>') +
+        '</div>';
+      }
+      return '<div class="sheet-row lib-song" data-libtoggle="' + sg.id + '" style="cursor:pointer"><div class="info" style="flex:1;min-width:0"><b>' + esc(sg.title) + '</b>' +
+        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (overrides ? ' &middot; '+overrides+' member key'+(overrides===1?'':'s') : '') + '</span></div>' +
         '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:16px">' + esc(sg.key||'—') + '</b>' +
         (canEdit ? '<button class="btn ghost small" data-libedit="'+sg.id+'">Edit</button>' : '') +
+        '<span aria-hidden="true" style="color:var(--ink-soft);font-size:13px">' + (open ? '&#9652;' : '&#9662;') + '</span>' +
+        panel +
       '</div>';
     }).join('');
     el.innerHTML =
-      '<div class="panel-head"><div><h2 class="display">Song Library</h2><p>Set a default key, then a key per vocalist who leads it &mdash; the set list picks the right one automatically.</p></div>' +
+      '<div class="panel-head"><div><h2 class="display">Song Library</h2><p>Tap a song to see everyone&rsquo;s key. Set a default key, then a key per member &mdash; Arrangements picks the right one automatically.</p></div>' +
       (canEdit ? '<button class="btn gold" id="btn-add-libsong">+ Add song</button>' : '') + '</div>' +
       (lib.length ? '<div class="sheet-list">'+rows+'</div>' : '<div class="empty-note">Library is empty' + (canEdit?' — add the songs your team sings.':'.') + '</div>');
     var addBtn = document.getElementById('btn-add-libsong');
     if (addBtn) addBtn.onclick = function(){ openLibSongModal(null); };
+    el.querySelectorAll('[data-libtoggle]').forEach(function(card){
+      card.onclick = function(e){
+        if (e.target.closest('button,.lib-panel')) return;
+        expandedLib[card.dataset.libtoggle] = !expandedLib[card.dataset.libtoggle];
+        renderSongLibrary();
+      };
+    });
     el.querySelectorAll('[data-libedit]').forEach(function(b){ b.onclick = function(){ openLibSongModal(songLibrary.find(function(x){return x.id===b.dataset.libedit;})); }; });
   }
   function openLibSongModal(sg){
@@ -1749,14 +1775,14 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     document.getElementById('lb-title').value = sg.title||'';
     document.getElementById('lb-key').value = sg.key||'';
     document.getElementById('lb-ccli').value = sg.ccli||'';
-    var leaders = teamUsers.filter(function(m){ return !m.inactive && (m.roles||[]).some(function(r){ var p=(config.positions||[]).find(function(x){return x.id===r;}); return p && /vocal|lead/i.test(p.name); }); }).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+    var leaders = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
     var wrap = document.getElementById('lb-leader-keys');
     if (leaders.length){
       wrap.innerHTML = leaders.map(function(m){
         return '<div style="display:flex;align-items:center;gap:10px"><div style="flex:1;font-size:13.5px">'+esc(m.name)+'</div><input type="text" data-leaderkey="'+m.id+'" value="'+esc((sg.keys||{})[m.id]||'')+'" placeholder="—" style="width:70px;text-align:center;padding:6px;border-radius:6px;border:1.5px solid var(--line)"></div>';
       }).join('');
     } else {
-      wrap.innerHTML = '<p class="tiny-note" style="margin:0">Tick a vocal/lead position for someone on the Team tab to set a key per person here.</p>';
+      wrap.innerHTML = '<p class="tiny-note" style="margin:0">Nobody has signed in yet, so there are no members to set keys for.</p>';
     }
     document.getElementById('libsong-overlay').classList.add('active');
   }
@@ -2071,20 +2097,57 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var wks = recentSundays(10);
     sel.innerHTML = wks.map(function(s){ return '<option value="' + svcISO(s) + '">' + s.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'}) + '</option>'; }).join('');
   }
-  document.getElementById('fb-week').addEventListener('change', renderFeedbackList);
+  document.getElementById('fb-week').addEventListener('change', function(){ editingFeedbackId = null; renderFeedbackList(); });
 
+  var feedbackItems = [], feedbackNames = {}, editingFeedbackId = null;
+  function drawFeedbackList(){
+    var wrap = document.getElementById('feedback-list');
+    if (!feedbackItems.length){ wrap.innerHTML = '<div class="empty-note">No feedback for this Sunday yet.</div>'; return; }
+    wrap.innerHTML = feedbackItems.map(function(i){
+      var mine = i.authorId === myId;
+      var meta = '<div class="fb-meta"><span>' + esc(feedbackNames[i.authorId]) + '</span><span>' + timeAgo(i.createdAt) + (i.editedAt ? ' &middot; edited' : '') + '</span></div>';
+      if (mine && editingFeedbackId === i.id){
+        return '<div class="fb-item">' + meta +
+          '<textarea class="fb-edit-text" style="width:100%;min-height:70px;font-family:inherit;padding:8px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)">' + esc(i.comment) + '</textarea>' +
+          '<div class="sg-status-btns"><button data-fb-save="' + i.id + '">Save</button><button data-fb-cancel="1">Cancel</button></div></div>';
+      }
+      return '<div class="fb-item">' + meta + esc(i.comment) +
+        (mine ? '<div class="sg-status-btns"><button data-fb-edit="' + i.id + '">Edit</button><button data-fb-del="' + i.id + '">Delete</button></div>' : '') + '</div>';
+    }).join('');
+    wrap.querySelectorAll('[data-fb-edit]').forEach(function(b){ b.onclick = function(){ editingFeedbackId = b.dataset.fbEdit; drawFeedbackList(); }; });
+    wrap.querySelectorAll('[data-fb-cancel]').forEach(function(b){ b.onclick = function(){ editingFeedbackId = null; drawFeedbackList(); }; });
+    wrap.querySelectorAll('[data-fb-save]').forEach(function(b){
+      b.onclick = async function(){
+        var text = wrap.querySelector('.fb-edit-text').value.trim();
+        if (!text){ toast('Feedback can’t be empty — delete it instead.'); return; }
+        try {
+          await db.collection('feedback').doc(b.dataset.fbSave).update({ comment: text, editedAt: Date.now() });
+          editingFeedbackId = null;
+          toast('Feedback updated.');
+          renderFeedbackList();
+        } catch(err){ toast('Could not update feedback.'); }
+      };
+    });
+    wrap.querySelectorAll('[data-fb-del]').forEach(function(b){
+      b.onclick = async function(){
+        if (!confirm('Delete your feedback?')) return;
+        try {
+          await db.collection('feedback').doc(b.dataset.fbDel).delete();
+          toast('Feedback deleted.');
+          renderFeedbackList();
+        } catch(err){ toast('Could not delete feedback.'); }
+      };
+    });
+  }
   async function renderFeedbackList(){
     var wid = document.getElementById('fb-week').value;
     var wrap = document.getElementById('feedback-list');
     if (!db){ wrap.innerHTML = ''; return; }
     try {
       var snap = await db.collection('feedback').where('weekId','==',wid).get();
-      var items = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
-      if (!items.length){ wrap.innerHTML = '<div class="empty-note">No feedback for this Sunday yet.</div>'; return; }
-      var names = await resolveNames(items.map(function(i){ return i.authorId; }));
-      wrap.innerHTML = items.map(function(i){
-        return '<div class="fb-item"><div class="fb-meta"><span>' + esc(names[i.authorId]) + '</span><span>' + timeAgo(i.createdAt) + '</span></div>' + esc(i.comment) + '</div>';
-      }).join('');
+      feedbackItems = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+      feedbackNames = await resolveNames(feedbackItems.map(function(i){ return i.authorId; }));
+      drawFeedbackList();
     } catch(e){ wrap.innerHTML = ''; }
   }
   document.getElementById('btn-add-feedback').addEventListener('click', async function(){
