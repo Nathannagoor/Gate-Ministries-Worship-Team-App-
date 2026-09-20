@@ -417,6 +417,9 @@
     <div class="field"><label>Acoustic guitar</label><input id="f-acoustic1" placeholder="Standard"></div>
     <div class="field"><label>Electric guitar 1</label><input id="f-electric1" placeholder="Clean, light reverb"></div>
     <div class="field"><label>Electric guitar 2</label><input id="f-electric2" placeholder="Clean, light reverb"></div>
+    <div class="field" id="f-savelib-field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px"><input type="checkbox" id="f-savelib" style="width:auto" checked> Also save to the Song Library (so next time it fills in automatically)</label>
+    </div>
     <div class="modal-actions">
       <button class="btn danger" id="btn-delete-song" style="display:none;margin-right:auto">Delete</button>
       <button class="btn ghost" id="btn-cancel-song">Cancel</button>
@@ -510,6 +513,18 @@
       <div class="field"><label>Default key</label><input id="lb-key" placeholder="G"></div>
     </div>
     <div class="field"><label>CCLI number (optional)</label><input id="lb-ccli" placeholder="7117726"></div>
+    <p class="tiny-note" style="margin:4px 0 8px"><b>Fixed details</b> &mdash; these fill in automatically when you add the song to an arrangement, so you only enter them once.</p>
+    <div class="field-row">
+      <div class="field"><label>Category</label><select id="lb-category"><option>Praise</option><option>Worship</option></select></div>
+      <div class="field"><label>Tempo</label><input id="lb-tempo" placeholder="72 BPM"></div>
+      <div class="field"><label>Time</label><input id="lb-time" placeholder="4/4"></div>
+    </div>
+    <div class="field"><label>BVs</label><input id="lb-bvs" placeholder="Chorus onwards"></div>
+    <div class="field"><label>Keys / Piano</label><input id="lb-inst-keys" placeholder="Piano / EP"></div>
+    <div class="field"><label>Pads</label><input id="lb-pads" placeholder="Pads &amp; strings"></div>
+    <div class="field"><label>Acoustic guitar</label><input id="lb-acoustic1" placeholder="Standard"></div>
+    <div class="field"><label>Electric guitar 1</label><input id="lb-electric1" placeholder="Clean, light reverb"></div>
+    <div class="field"><label>Electric guitar 2</label><input id="lb-electric2" placeholder="Clean, light reverb"></div>
     <div class="field">
       <label>Key for each member (blank = default key)</label>
       <div id="lb-leader-keys" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -971,10 +986,20 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var u = teamUsers.find(function(x){ return (x.name||'').trim().toLowerCase() === n; });
     return (u && lib.keys && lib.keys[u.id]) || '';
   }
+  var ARR_FIELDS = [['f-category','category'],['f-tempo','tempo'],['f-time','timeSig'],['f-bvs','bvs'],['f-keys','keys'],['f-pads','pads'],['f-acoustic1','acoustic1'],['f-electric1','electric1'],['f-electric2','electric2']];
+  function readArrFromForm(){
+    var o = {};
+    ARR_FIELDS.forEach(function(p){ o[p[1]] = document.getElementById(p[0]).value.trim(); });
+    return o;
+  }
   function applyLibrarySelection(fromLeader){
     var lib = songLibrary.find(function(x){ return x.id === document.getElementById('f-library').value; });
     if (!lib) return;
-    if (!fromLeader) document.getElementById('f-title').value = lib.title || '';
+    if (!fromLeader){
+      document.getElementById('f-title').value = lib.title || '';
+      var arr = lib.arr || {};
+      ARR_FIELDS.forEach(function(p){ if (p[1] === 'category') { document.getElementById(p[0]).value = arr.category || 'Praise'; } else { document.getElementById(p[0]).value = arr[p[1]] || ''; } });
+    }
     document.getElementById('f-key').value = libraryKeyFor(lib, document.getElementById('f-leader').value) || lib.key || '';
   }
   function openSongModal(song){
@@ -991,6 +1016,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var libField = document.getElementById('f-library-field');
     var libs = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
     libField.style.display = (!song && libs.length) ? '' : 'none';
+    document.getElementById('f-savelib-field').style.display = song ? 'none' : '';
+    document.getElementById('f-savelib').checked = true;
     document.getElementById('f-library').innerHTML = '<option value="">— or type a new song below —</option>' + libs.map(function(l){ return '<option value="'+l.id+'">'+esc(l.title)+(l.key?' ('+esc(l.key)+')':'')+'</option>'; }).join('');
     songOverlay.classList.add('active');
   }
@@ -1022,7 +1049,14 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     try {
       if (!db) { toast('Not connected.'); return; }
       if (editingSongId) await db.collection('songs').doc(editingSongId).set(data);
-      else await db.collection('songs').add(data);
+      else {
+        await db.collection('songs').add(data);
+        var t = data.title.trim().toLowerCase();
+        if (document.getElementById('f-savelib').checked && !songLibrary.some(function(l){ return (l.title||'').trim().toLowerCase() === t; })){
+          var a = readArrFromForm();
+          await db.collection('songLibrary').add({ title: data.title, key: data.key, ccli: '', keys: {}, arr: a });
+        }
+      }
       songOverlay.classList.remove('active');
       toast('Saved.');
     } catch(err){ toast('Could not save (' + (err.code||'error') + ').'); }
@@ -1717,6 +1751,22 @@ import { cloudinaryConfig } from './cloudinary-config.js';
 
   // ---------- rota: song library ----------
   var expandedLib = {};
+  async function importLibraryFromArrangements(){
+    var have = {};
+    songLibrary.forEach(function(l){ have[(l.title||'').trim().toLowerCase()] = true; });
+    var toAdd = [];
+    songs.slice().sort(function(a,b){ return (b.order||0) - (a.order||0); }).forEach(function(x){
+      var k = (x.title||'').trim().toLowerCase();
+      if (!k || have[k]) return;
+      have[k] = true;
+      toAdd.push({ title: x.title, key: x.key || '', ccli: '', keys: {}, arr: { category: x.category || 'Praise', tempo: x.tempo || '', timeSig: x.timeSig || '', bvs: x.bvs || '', keys: x.keys || '', pads: x.pads || '', acoustic1: x.acoustic1 || '', electric1: x.electric1 || '', electric2: x.electric2 || '' } });
+    });
+    if (!toAdd.length){ toast('Everything in Arrangements is already in the library.'); return; }
+    try {
+      await Promise.all(toAdd.map(function(d){ return db.collection('songLibrary').add(d); }));
+      toast('Imported ' + toAdd.length + ' song' + (toAdd.length===1?'':'s') + ' into the library.');
+    } catch(err){ toast('Could not import.'); }
+  }
   function renderSongLibrary(){
     var el = document.getElementById('songlibrary-body'); if (!el) return;
     var lib = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
@@ -1744,7 +1794,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         '</div>';
       }
       return '<div class="sheet-row lib-song" data-libtoggle="' + sg.id + '" style="cursor:pointer"><div class="info" style="flex:1;min-width:0"><b>' + esc(sg.title) + '</b>' +
-        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (overrides ? ' &middot; '+overrides+' member key'+(overrides===1?'':'s') : '') + '</span></div>' +
+        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.arr && (sg.arr.tempo || sg.arr.timeSig) ? ' &middot; ' + esc([sg.arr.tempo, sg.arr.timeSig].filter(Boolean).join(' ')) : '') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (overrides ? ' &middot; '+overrides+' member key'+(overrides===1?'':'s') : '') + '</span></div>' +
         '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:16px">' + esc(sg.key||'—') + '</b>' +
         (canEdit ? '<button class="btn ghost small" data-libedit="'+sg.id+'">Edit</button>' : '') +
         '<span aria-hidden="true" style="color:var(--ink-soft);font-size:13px">' + (open ? '&#9652;' : '&#9662;') + '</span>' +
@@ -1753,10 +1803,12 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     }).join('');
     el.innerHTML =
       '<div class="panel-head"><div><h2 class="display">Song Library</h2><p>Tap a song to see everyone&rsquo;s key. Set a default key, then a key per member &mdash; Arrangements picks the right one automatically.</p></div>' +
-      (canEdit ? '<button class="btn gold" id="btn-add-libsong">+ Add song</button>' : '') + '</div>' +
+      (canEdit ? '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="btn-import-lib">Import from Arrangements</button><button class="btn gold" id="btn-add-libsong">+ Add song</button></div>' : '') + '</div>' +
       (lib.length ? '<div class="sheet-list">'+rows+'</div>' : '<div class="empty-note">Library is empty' + (canEdit?' — add the songs your team sings.':'.') + '</div>');
     var addBtn = document.getElementById('btn-add-libsong');
     if (addBtn) addBtn.onclick = function(){ openLibSongModal(null); };
+    var impBtn = document.getElementById('btn-import-lib');
+    if (impBtn) impBtn.onclick = importLibraryFromArrangements;
     el.querySelectorAll('[data-libtoggle]').forEach(function(card){
       card.onclick = function(e){
         if (e.target.closest('button,.lib-panel')) return;
@@ -1775,6 +1827,16 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     document.getElementById('lb-title').value = sg.title||'';
     document.getElementById('lb-key').value = sg.key||'';
     document.getElementById('lb-ccli').value = sg.ccli||'';
+    var arr = sg.arr || {};
+    document.getElementById('lb-category').value = arr.category || 'Praise';
+    document.getElementById('lb-tempo').value = arr.tempo || '';
+    document.getElementById('lb-time').value = arr.timeSig || '';
+    document.getElementById('lb-bvs').value = arr.bvs || '';
+    document.getElementById('lb-inst-keys').value = arr.keys || '';
+    document.getElementById('lb-pads').value = arr.pads || '';
+    document.getElementById('lb-acoustic1').value = arr.acoustic1 || '';
+    document.getElementById('lb-electric1').value = arr.electric1 || '';
+    document.getElementById('lb-electric2').value = arr.electric2 || '';
     var leaders = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
     var wrap = document.getElementById('lb-leader-keys');
     if (leaders.length){
@@ -1792,7 +1854,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     if (!title){ toast('Add a title.'); return; }
     var keys = {};
     document.querySelectorAll('#lb-leader-keys [data-leaderkey]').forEach(function(inp){ if (inp.value.trim()) keys[inp.dataset.leaderkey] = inp.value.trim(); });
-    var data = { title: title, key: document.getElementById('lb-key').value.trim(), ccli: document.getElementById('lb-ccli').value.trim(), keys: keys };
+    var data = { title: title, key: document.getElementById('lb-key').value.trim(), ccli: document.getElementById('lb-ccli').value.trim(), keys: keys,
+      arr: { category: document.getElementById('lb-category').value, tempo: document.getElementById('lb-tempo').value.trim(), timeSig: document.getElementById('lb-time').value.trim(), bvs: document.getElementById('lb-bvs').value.trim(),
+             keys: document.getElementById('lb-inst-keys').value.trim(), pads: document.getElementById('lb-pads').value.trim(), acoustic1: document.getElementById('lb-acoustic1').value.trim(),
+             electric1: document.getElementById('lb-electric1').value.trim(), electric2: document.getElementById('lb-electric2').value.trim() } };
     try {
       if (editingLibSongId) await db.collection('songLibrary').doc(editingLibSongId).set(data);
       else await db.collection('songLibrary').add(data);

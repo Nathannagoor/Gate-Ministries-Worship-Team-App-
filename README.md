@@ -92,7 +92,7 @@ is allowed by default).
 | Collection      | Written by                          | Notes |
 |-----------------|--------------------------------------|-------|
 | `songs`         | team leads only                      | the arrangement for each service (`serviceId`, `order`, key, tempo, leader, instrument notes); this is the set list |
-| `songLibrary`   | team leads only                      | title, default key, CCLI, per-vocalist keys; feeds set lists |
+| `songLibrary`   | team leads only                      | title, default key, CCLI, per-member keys, and the fixed arrangement details (`arr`: category, tempo, time, BVs, instrument notes) that prefill Arrangements |
 | `config/main`   | team leads only                      | church name, rehearsal time, roster positions (name + slot count), song repeat window |
 | `services`      | team leads (all fields); any member (their own `avail` answers only) | a dated/named service or special event: roster `assign`, `avail`, `notes` |
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
