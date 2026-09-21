@@ -799,6 +799,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     {id:'p9', name:'Media', count:1}
   ], rehearsal: '', songGapWeeks: 3 };
   var teamUsers = [];
+  var availMap = {};
+  var availLoaded = false;
   var songLibrary = [];
   var services = [];
   var activeServiceId = null;
@@ -1111,17 +1113,47 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     }
   }
   var servicesLoaded = false;
-  function ensureSundays(){
+  async function ensureSundays(){
     var have = {};
     services.forEach(function(x){ have[x.id] = true; });
     var d = new Date(); d.setHours(12,0,0,0);
     d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
     for (var i=0;i<12;i++){
       var iso = svcISO(d), id = 'sunday-' + iso;
-      if (!have[id]){
-        db.collection('services').doc(id).set({ date: iso, time: '09:00', label: 'Sunday service', assign: {}, avail: {}, set: [], notes: '', createdAt: Date.now() }).catch(function(){});
-      }
       d.setDate(d.getDate()+7);
+      if (have[id]) continue;
+      try {
+        // re-check on the server right before writing so an existing week is never overwritten
+        var existing = await db.collection('services').doc(id).get();
+        if (!existing.exists){
+          await db.collection('services').doc(id).set({ date: iso, time: '09:00', label: 'Sunday service', assign: {}, avail: {}, set: [], notes: '', createdAt: Date.now() });
+        }
+      } catch(e){}
+    }
+  }
+  // ---- availability: one small document per person per service ----
+  function availOf(serviceId, userId){ return (availMap[serviceId] || {})[userId] || ''; }
+  async function setAvail(serviceId, userId, status){
+    var id = serviceId + '__' + userId;
+    try {
+      if (!status) await db.collection('availability').doc(id).delete();
+      else await db.collection('availability').doc(id).set({ serviceId: serviceId, userId: userId, status: status, updatedAt: Date.now() });
+      toast(status ? 'Saved.' : 'Cleared.');
+    } catch(err){ toast('Not saved — ' + (err.code === 'permission-denied' ? 'you don’t have permission for that.' : 'check your connection and try again.')); }
+  }
+  var availMigrated = false;
+  async function maybeMigrateAvail(){
+    if (availMigrated || !canEdit || !availLoaded || !servicesLoaded) return;
+    availMigrated = true;
+    // copy answers from the old shared service.avail map so nothing is lost
+    for (var i=0;i<services.length;i++){
+      var sv = services[i], old = sv.avail || {};
+      var uids = Object.keys(old);
+      for (var j=0;j<uids.length;j++){
+        if (old[uids[j]] && !availOf(sv.id, uids[j])){
+          try { await db.collection('availability').doc(sv.id + '__' + uids[j]).set({ serviceId: sv.id, userId: uids[j], status: old[uids[j]], updatedAt: Date.now() }); } catch(e){}
+        }
+      }
     }
   }
   function curService(){ return services.find(function(s){ return s.id === activeServiceId; }); }
@@ -1174,7 +1206,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     Object.keys(assign).forEach(function(k){ if (assign[k]) used[assign[k]]=true; });
     var filled=0, short=[], doubles=[];
 
-    function eligibleFor(m, sl){ return !m.inactive && (m.roles||[]).indexOf(sl.posId)>=0 && (s.avail||{})[m.id] !== 'no'; }
+    function eligibleFor(m, sl){ return !m.inactive && (m.roles||[]).indexOf(sl.posId)>=0 && availOf(s.id, m.id) !== 'no'; }
     var order = rosterSlots()
       .map(function(sl,i){ return {sl:sl, i:i, n: teamUsers.filter(function(m){ return eligibleFor(m, sl); }).length}; })
       .sort(function(a,b){ return a.n!==b.n ? a.n-b.n : a.i-b.i; })
@@ -1190,7 +1222,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       }
       if (!pool.length){ short.push(sl.name); return; }
       pool.sort(function(a,b){
-        var av = function(x){ return (s.avail||{})[x.id]==='yes' ? 0 : 1; };
+        var av = function(x){ return availOf(s.id, x.id)==='yes' ? 0 : 1; };
         if (av(a)!==av(b)) return av(a)-av(b);
         var la = hist[a.id] ? weeksBetweenISO(hist[a.id], s.date) : 999;
         var lb = hist[b.id] ? weeksBetweenISO(hist[b.id], s.date) : 999;
@@ -1277,9 +1309,15 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   // ---------- rota: availability ----------
   function renderAvailabilityTab(){
     var el = document.getElementById('availability-body'); if (!el) return;
-    var head = '<div class="panel-head"><div><h2 class="display">Availability</h2><p>Tap a cell to cycle: no reply &rarr; can serve &rarr; can’t serve.</p></div></div>';
+    var head = '<div class="panel-head"><div><h2 class="display">Availability</h2><p>' + (canEdit
+      ? 'Everyone’s answers, visible to team leads only. Tap a cell to cycle: no reply &rarr; can serve &rarr; can’t serve.'
+      : 'Tap a service to cycle: no reply &rarr; can serve &rarr; can’t serve. Only you and the team leads can see your answers.') + '</p></div></div>';
     var upcoming = svcList().filter(function(s){ return s.date >= svcISO(new Date()); }).slice(0,10);
     var mem = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    if (!canEdit){
+      var me = teamUsers.find(function(m){ return m.id === myId; }) || { id: myId, name: 'You', roles: [] };
+      mem = [me];
+    }
 
     if (!upcoming.length){
       el.innerHTML = head + '<div class="empty-note">No upcoming services yet' + (canEdit ? ' &mdash; they appear automatically.' : '.') + '</div>';
@@ -1291,12 +1329,12 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     }
 
     var headRow = '<tr><th>Name</th>' + upcoming.map(function(s){
-      return '<th class="c">' + esc(fmtSvc(s.date)) + '<div style="font-weight:400;color:var(--ink-soft);font-size:10.5px">' + esc(s.time) + '</div></th>';
+      return '<th class="c">' + esc(fmtSvc(s.date)) + (s.label && s.id.indexOf('sunday-') !== 0 ? '<div style="font-weight:700;color:var(--gold-ink);font-size:10.5px">' + esc(s.label) + '</div>' : '') + '<div style="font-weight:400;color:var(--ink-soft);font-size:10.5px">' + esc(s.time) + '</div></th>';
     }).join('') + '</tr>';
 
     var bodyRows = mem.map(function(m){
       var cells = upcoming.map(function(s){
-        var v = (s.avail||{})[m.id] || '';
+        var v = availOf(s.id, m.id);
         var lab = v==='yes' ? '&#10003;' : v==='no' ? '&#10007;' : '&middot;';
         var editable = canEdit || m.id === myId;
         return '<td class="c"><button class="av ' + v + '" ' + (editable?'':'disabled') + ' data-svc="' + s.id + '" data-mem="' + m.id + '" title="' + esc(m.name) + ' — ' + esc(fmtSvc(s.date)) + '">' + lab + '</button></td>';
@@ -1309,13 +1347,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     el.querySelectorAll('.av').forEach(function(b){
       if (b.disabled) return;
       b.onclick = function(){
-        var s = services.find(function(x){ return x.id === b.dataset.svc; }); if (!s) return;
-        var avail = Object.assign({}, s.avail||{});
-        var cur = avail[b.dataset.mem];
-        if (!cur) avail[b.dataset.mem] = 'yes';
-        else if (cur === 'yes') avail[b.dataset.mem] = 'no';
-        else delete avail[b.dataset.mem];
-        saveServiceField(s, 'avail', avail);
+        var cur = availOf(b.dataset.svc, b.dataset.mem);
+        setAvail(b.dataset.svc, b.dataset.mem, !cur ? 'yes' : (cur === 'yes' ? 'no' : null));
       };
     });
   }
@@ -1332,20 +1365,20 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var sl = rosterSlots();
     var gaps = sl.filter(function(x){ return !(s.assign||{})[x.key]; });
     var mem = teamUsers.filter(function(m){ return !m.inactive; });
-    var confirmed = mem.filter(function(m){ return (s.avail||{})[m.id]==='yes'; }).length;
-    var declined = mem.filter(function(m){ return (s.avail||{})[m.id]==='no'; }).length;
+    var confirmed = mem.filter(function(m){ return availOf(s.id, m.id)==='yes'; }).length;
+    var declined = mem.filter(function(m){ return availOf(s.id, m.id)==='no'; }).length;
 
     var rows = sl.map(function(x){
       var mid = (s.assign||{})[x.key] || '';
       var opts = teamUsers.filter(function(m){ return !m.inactive && (m.roles||[]).indexOf(x.posId)>=0; })
         .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
         .map(function(m){
-          var a = (s.avail||{})[m.id];
+          var a = canEdit ? availOf(s.id, m.id) : 'yes';
           var takenElsewhere = Object.keys(s.assign||{}).some(function(k){ return s.assign[k]===m.id && k!==x.key; });
           return '<option value="'+m.id+'" '+(m.id===mid?'selected':'')+'>'+esc(m.name)+(a==='no'?' — can’t serve':a!=='yes'?' — no reply':'')+(takenElsewhere?' &middot; also serving elsewhere':'')+'</option>';
         }).join('');
       var label = x.count>1 ? x.name+' '+(x.idx+1) : x.name;
-      var warn = mid && (s.avail||{})[mid]==='no';
+      var warn = canEdit && mid && availOf(s.id, mid)==='no';
       return '<div class="slot ' + (mid?'':'gap') + '">' +
         '<div class="pos">' + esc(label) + '</div>' +
         '<div class="who"><select class="slotSel" data-slot="'+x.key+'" '+(canEdit?'':'disabled')+'><option value="">— unfilled —</option>'+opts+'</select>' +
@@ -1357,11 +1390,11 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     el.innerHTML =
       '<div class="panel-head"><div><h2 class="display">' + esc(fmtSvcLong(s.date)) + ' &middot; ' + esc(s.time) + (s.label?' &middot; '+esc(s.label):'') + '</h2>' +
       '<p>Auto-fill prefers whoever’s gone longest without serving and skips anyone who said they can’t make it.' + (canEdit ? ' <a href="#" id="lnk-setup" style="color:var(--gold-ink);font-weight:700">Edit positions in Setup</a>' : '') + '</p></div><button class="btn ghost" id="btn-share-roster">Share summary</button></div>' +
-      '<div class="stat-bank">' +
+      (canEdit ? '<div class="stat-bank">' +
         '<div><b>' + confirmed + '</b><span>confirmed</span></div>' +
         '<div><b>' + declined + '</b><span>said no</span></div>' +
         '<div><b>' + gaps.length + '</b><span>unfilled</span></div>' +
-      '</div>' +
+      '</div>' : '') +
       (gaps.length ? '<div class="tiny-note" style="background:var(--no-soft);border:1px solid var(--no);color:var(--no);padding:8px 12px;border-radius:8px;margin:0 0 14px;">Still to fill: ' + esc(uniq(gaps.map(function(g){return g.name;})).join(', ')) + '</div>' : '') +
       (canEdit ? '<div class="bar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"><button class="btn gold small" id="btn-fill-gaps">Fill empty slots</button><button class="btn ghost small" id="btn-fill-all">Rebuild from scratch</button><button class="btn ghost small" id="btn-clear-roster">Clear</button><span style="flex:1"></span><button class="btn ghost small" id="btn-add-roster-pos">+ Add position</button></div>' : '') +
       '<div class="slot-sheet">' + rows + '</div>' +
@@ -2334,9 +2367,20 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         }, function(){ toast('Could not load song library.'); });
       } catch(e){}
       try {
+        var availQuery = canEdit ? db.collection('availability') : db.collection('availability').where('userId','==',myId);
+        availQuery.onSnapshot(function(snap){
+          var m = {};
+          snap.docs.forEach(function(d){ var x = d.data(); if (x.serviceId && x.userId && x.status){ (m[x.serviceId] = m[x.serviceId] || {})[x.userId] = x.status; } });
+          availMap = m; availLoaded = true;
+          renderServiceViews();
+          maybeMigrateAvail();
+        }, function(){ toast('Could not load availability.'); });
+      } catch(e){}
+      try {
         db.collection('services').onSnapshot(function(snap){
           services = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           if (!servicesLoaded){ servicesLoaded = true; ensureSundays(); }
+          maybeMigrateAvail();
           ensureActiveService();
           renderServiceViews();
         }, function(){ toast('Could not load services.'); });

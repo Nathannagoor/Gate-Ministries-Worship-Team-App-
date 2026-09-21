@@ -17,9 +17,6 @@ service cloud.firestore {
         request.resource.data.avail.size() == 0 &&
         request.resource.data.set.size() == 0;
     }
-    function onlyAvailChanged() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avail']);
-    }
 
     // Everyone signed in can read profiles (needed to show names in the
     // team roster, availability grid, feedback, suggestions). Users can
@@ -61,13 +58,23 @@ service cloud.firestore {
     // Services: a specific dated/named event (a Sunday or a special
     // occasion) with its roster assignment, availability, set list and
     // notes. Regular Sundays are auto-created (blank) by any signed-in
-    // client under the id sunday-YYYY-MM-DD; team leads manage everything
-    // else, and members may only touch availability answers.
+    // client under the id sunday-YYYY-MM-DD; only team leads change them.
     match /services/{serviceId} {
       allow read: if signedIn();
       allow create: if isTeamLead() || (signedIn() && isBlankSunday(serviceId));
       allow delete: if isTeamLead();
-      allow update: if isTeamLead() || (signedIn() && onlyAvailChanged());
+      allow update: if isTeamLead();
+    }
+
+    // Availability: one doc per person per service (id serviceId__userId).
+    // Members can only read and write their own answers; team leads can
+    // read everyone's and write anyone's.
+    match /availability/{docId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isTeamLead());
+      allow create, update: if signedIn()
+        && docId == request.resource.data.serviceId + '__' + request.resource.data.userId
+        && (request.resource.data.userId == request.auth.uid || isTeamLead());
+      allow delete: if signedIn() && (resource.data.userId == request.auth.uid || isTeamLead());
     }
 
     // Resources: everyone reads, any signed-in member can add one, only a
