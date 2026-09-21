@@ -374,7 +374,7 @@
     <div class="avail-columns">
       <div class="card-block">
         <h3>Set feedback</h3>
-        <p class="hint">Pick the Sunday and share how it went.</p>
+        <p class="hint" id="fb-hint">Pick the Sunday and share how it went.</p>
         <div class="field"><label>Sunday</label><select id="fb-week"></select></div>
         <div class="field"><label>Your feedback</label><textarea id="fb-text" style="min-height:70px;font-family:inherit" placeholder="What worked, what to tweak next time..."></textarea></div>
         <button class="btn gold small" id="btn-add-feedback">Post feedback</button>
@@ -382,7 +382,7 @@
       </div>
       <div class="card-block">
         <h3>Suggest a song</h3>
-        <p class="hint">Send a song for the team lead to consider.</p>
+        <p class="hint" id="sg-hint">Send a song for the team lead to consider.</p>
         <div class="field"><label>Song title</label><input id="sg-title" placeholder="Song title"></div>
         <div class="field"><label>Artist / link (optional)</label><input id="sg-link" placeholder="Artist name or a YouTube link"></div>
         <div class="field"><label>Why this song? (optional)</label><textarea id="sg-reason" style="min-height:60px;font-family:inherit" placeholder="Fits the sermon series, congregation has been asking for it..."></textarea></div>
@@ -622,6 +622,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   }
   function makeQueryShim(q){
     return {
+      where: function(field, op, val){ return makeQueryShim(query(q, where(field, op, val))); },
       get: function(){ return getDocs(q).then(wrapSnapshot); },
       onSnapshot: function(cb, errCb){ return onSnapshot(q, function(snap){ cb(wrapSnapshot(snap)); }, errCb); }
     };
@@ -2200,7 +2201,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   var feedbackItems = [], feedbackNames = {}, editingFeedbackId = null;
   function drawFeedbackList(){
     var wrap = document.getElementById('feedback-list');
-    if (!feedbackItems.length){ wrap.innerHTML = '<div class="empty-note">No feedback for this Sunday yet.</div>'; return; }
+    if (!feedbackItems.length){ wrap.innerHTML = '<div class="empty-note">' + (canEdit ? 'No feedback for this Sunday yet.' : 'You haven\u2019t left feedback for this Sunday yet.') + '</div>'; return; }
     wrap.innerHTML = feedbackItems.map(function(i){
       var mine = i.authorId === myId;
       var meta = '<div class="fb-meta"><span>' + esc(feedbackNames[i.authorId]) + '</span><span>' + timeAgo(i.createdAt) + (i.editedAt ? ' &middot; edited' : '') + '</span></div>';
@@ -2242,7 +2243,9 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var wrap = document.getElementById('feedback-list');
     if (!db){ wrap.innerHTML = ''; return; }
     try {
-      var snap = await db.collection('feedback').where('weekId','==',wid).get();
+      var fq = db.collection('feedback').where('weekId','==',wid);
+      if (!canEdit) fq = fq.where('authorId','==',myId);
+      var snap = await fq.get();
       feedbackItems = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
       feedbackNames = await resolveNames(feedbackItems.map(function(i){ return i.authorId; }));
       drawFeedbackList();
@@ -2264,7 +2267,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   function renderSuggestions(){
     var wrap = document.getElementById('suggestion-list');
     var list = suggestions.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
-    if (!list.length){ wrap.innerHTML = '<div class="empty-note">No suggestions yet.</div>'; return; }
+    if (!list.length){ wrap.innerHTML = '<div class="empty-note">' + (canEdit ? 'No suggestions yet.' : 'You haven\u2019t suggested anything yet.') + '</div>'; return; }
     resolveNames(list.map(function(s){ return s.submittedBy; })).then(function(names){
       wrap.innerHTML = list.map(function(s){
         var status = s.status || 'New';
@@ -2328,6 +2331,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     }
 
     if (canEdit) document.getElementById('btn-add-song').style.display = '';
+    document.getElementById('fb-hint').textContent = canEdit ? 'Pick the Sunday and see everyone\u2019s feedback.' : 'Pick the Sunday and share how it went. Only you and the team leads can see it.';
+    document.getElementById('sg-hint').textContent = canEdit ? 'Every suggestion from the team, for you to approve or pass.' : 'Send a song for the team lead to consider. Only you and the team leads can see your suggestions.';
 
     if (db){
       try {
@@ -2343,7 +2348,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         }, function(){ toast('Could not load resources.'); });
       } catch(e){}
       try {
-        db.collection('suggestions').onSnapshot(function(snap){
+        (canEdit ? db.collection('suggestions') : db.collection('suggestions').where('submittedBy','==',myId)).onSnapshot(function(snap){
           suggestions = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           renderSuggestions();
         }, function(){ toast('Could not load suggestions.'); });

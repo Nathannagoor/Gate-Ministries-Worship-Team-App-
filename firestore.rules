@@ -85,20 +85,21 @@ service cloud.firestore {
       allow update, delete: if isTeamLead();
     }
 
-    // Feedback: everyone reads, each person can only post as themselves,
-    // and only the author can edit or delete their own feedback.
+    // Feedback: private. Only the author and team leads can read an entry;
+    // each person can only post as themselves, and only the author can edit
+    // or delete their own feedback.
     match /feedback/{docId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.authorId == request.auth.uid || isTeamLead());
       allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
       allow update: if signedIn() && resource.data.authorId == request.auth.uid
                     && request.resource.data.authorId == request.auth.uid;
       allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
     }
 
-    // Song suggestions: everyone reads, each person submits as themselves,
-    // only a team lead can change the status.
+    // Song suggestions: private. Only the submitter and team leads can read
+    // one; each person submits as themselves, only a team lead changes status.
     match /suggestions/{docId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.submittedBy == request.auth.uid || isTeamLead());
       allow create: if signedIn() && request.resource.data.submittedBy == request.auth.uid;
       allow update: if isTeamLead();
     }
