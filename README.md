@@ -94,7 +94,7 @@ is allowed by default).
 | `songs`         | team leads only                      | the arrangement for each service (`serviceId`, `order`, key, tempo, leader, instrument notes); this is the set list |
 | `songLibrary`   | team leads only                      | title, default key, CCLI, per-member keys, and the fixed arrangement details (`arr`: category, tempo, time, BVs, instrument notes) that prefill Arrangements |
 | `config/main`   | team leads only                      | church name, rehearsal time, roster positions (name + slot count), song repeat window |
-| `services`      | team leads (all fields); any member (their own `avail` answers only) | a dated/named service or special event: roster `assign`, `avail`, `notes` |
+| `services`      | team leads only (regular Sundays are auto-created blank by any client as `sunday-YYYY-MM-DD`) | a dated/named service or special event: roster `assign`, `notes` |
 | `availability`  | each member (own answers), team leads (anyone) | one doc per person per service (`serviceId__userId`); private to the person and team leads |
 | `teamSheets`    | any signed-in member (create), uploader or team lead (edit/delete) | chord/lead sheets: PDF/image via Cloudinary or text, saved under Praise/Worship with a key; same song in several keys is grouped |
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
