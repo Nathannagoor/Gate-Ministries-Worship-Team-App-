@@ -95,9 +95,11 @@ is allowed by default).
 | `songLibrary`   | team leads only                      | title, default key, CCLI, per-member keys, and the fixed arrangement details (`arr`: category, tempo, time, BVs, instrument notes) that prefill Arrangements |
 | `config/main`   | team leads only                      | church name, rehearsal time, roster positions (name + slot count), song repeat window |
 | `services`      | team leads (all fields); any member (their own `avail` answers only) | a dated/named service or special event: roster `assign`, `avail`, `notes` |
+| `availability`  | each member (own answers), team leads (anyone) | one doc per person per service (`serviceId__userId`); private to the person and team leads |
+| `teamSheets`    | any signed-in member (create), uploader or team lead (edit/delete) | chord/lead sheets: PDF/image via Cloudinary or text, saved under Praise/Worship with a key; same song in several keys is grouped |
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
-| `feedback`      | each user, own doc only              | set feedback per Sunday |
-| `suggestions`   | each user (create own), team leads (update status) | song suggestions |
+| `feedback`      | each user (create/edit/delete own)   | private: readable only by its author and team leads |
+| `suggestions`   | each user (create own), team leads (update status) | private: readable only by the submitter and team leads |
 | `users`         | each user (own profile), team leads (anyone) | `{ name, email, phone, roles, inactive, isTeamLead }` — this is the team roster; people appear once they sign in |
 
 Editing/deleting a `resources` doc only removes the

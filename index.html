@@ -281,6 +281,7 @@
     <button class="tab-btn" data-view="send">Send</button>
     <button class="tab-btn" data-view="team">Team</button>
     <button class="tab-btn" data-view="songlibrary">Song Library</button>
+    <button class="tab-btn" data-view="teamsheets">Team Sheets</button>
     <button class="tab-btn" data-view="resources">Resources</button>
     <button class="tab-btn" data-view="feedback">Feedback &amp; Suggestions</button>
     <button class="tab-btn" data-view="setup">Setup</button>
@@ -332,6 +333,11 @@
   <!-- SONG LIBRARY -->
   <section id="view-songlibrary" class="view">
     <div id="songlibrary-body"></div>
+  </section>
+
+  <!-- TEAM SHEETS -->
+  <section id="view-teamsheets" class="view">
+    <div id="teamsheets-body"></div>
   </section>
 
   <!-- SETUP -->
@@ -537,6 +543,45 @@
   </div>
 </div>
 
+<!-- Upload / edit team sheet modal -->
+<div class="overlay" id="teamsheet-overlay">
+  <div class="modal">
+    <h3 id="teamsheet-modal-title">Upload team sheet</h3>
+    <div class="field-row">
+      <div class="field" style="grid-column: span 2"><label>Song title</label><input id="ts-title" list="ts-titles" placeholder="Goodness Of God" autocomplete="off"><datalist id="ts-titles"></datalist></div>
+      <div class="field"><label>Key</label><select id="ts-key"></select></div>
+    </div>
+    <div class="field">
+      <label>Saved under</label>
+      <div style="display:flex;gap:16px;font-size:13px;font-weight:600;padding-top:4px">
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="ts-cat" value="Praise" checked> Praise</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:600"><input type="radio" name="ts-cat" value="Worship"> Worship</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>File (PDF, image, or a text document)</label>
+      <input type="file" id="ts-file" accept=".pdf,.txt,.cho,.pro,.crd,.md,text/plain,image/*">
+      <div class="tiny-note" id="ts-file-note">Reuse the same title for another key and the sheets are grouped together.</div>
+    </div>
+    <div class="field"><label>Or paste text</label>
+      <textarea id="ts-body" placeholder="G          D/F#      Em&#10;Amazing grace, how sweet the sound"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btn-delete-teamsheet" style="display:none;margin-right:auto">Delete</button>
+      <button class="btn ghost" id="btn-cancel-teamsheet">Cancel</button>
+      <button class="btn gold" id="btn-save-teamsheet">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- View team sheet modal -->
+<div class="overlay" id="sheetview-overlay">
+  <div class="modal" style="max-width:820px">
+    <div id="sheetview-body"></div>
+    <div class="modal-actions"><button class="btn ghost" id="btn-close-sheetview">Close</button></div>
+  </div>
+</div>
+
 <!-- Share summary modal -->
 <div class="overlay" id="share-overlay">
   <div class="modal" style="max-width:720px">
@@ -706,13 +751,15 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     if (CLOUDINARY_BLOCKED_ARCHIVE_FORMATS.indexOf(format) >= 0){
       throw new Error('Archive files (.' + format + ') can\'t be delivered on the free plan. Try a PDF, image, or a link instead.');
     }
-    var viewUrl = body.secure_url;
+    var viewUrl = body.secure_url, pageUrls = [];
     if (format === 'pdf'){
       // Cloudinary's free plan blocks direct delivery of the original PDF bytes,
       // but a rendered-page transformation is still allowed.
-      viewUrl = viewUrl.replace('/upload/', '/upload/f_jpg,pg_1,q_auto/');
+      viewUrl = body.secure_url.replace('/upload/', '/upload/f_jpg,pg_1,q_auto/');
+      var pages = Math.min(30, Math.max(1, +body.pages || 1));
+      for (var n=1;n<=pages;n++) pageUrls.push(body.secure_url.replace('/upload/', '/upload/f_jpg,pg_' + n + ',q_auto/'));
     }
-    return { url: viewUrl, contentType: file.type, sizeBytes: body.bytes };
+    return { url: viewUrl, contentType: file.type, sizeBytes: body.bytes, pageUrls: pageUrls };
   }
 
   async function ensureUserProfile(user){
@@ -1651,6 +1698,135 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     document.getElementById('sh-wa').onclick = function(){ window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener'); };
   }
 
+  // ---------- team sheets ----------
+  var teamSheets = [], teamSheetFilter = 'all', editingTeamSheetId = null;
+  function normTitle(t){ return String(t||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  function canManageSheet(sh){ return canEdit || (sh.uploadedBy && sh.uploadedBy === myId); }
+  function sheetKindLabel(sh){
+    if (sh.pageUrls && sh.pageUrls.length) return 'PDF · ' + sh.pageUrls.length + ' page' + (sh.pageUrls.length===1?'':'s');
+    if (sh.body) return 'Text';
+    if (sh.fileUrl) return 'Image';
+    return 'Empty';
+  }
+  function renderTeamSheets(){
+    var el = document.getElementById('teamsheets-body'); if (!el) return;
+    var list = teamSheets.filter(function(sh){ return teamSheetFilter === 'all' || sh.category === teamSheetFilter; });
+    if (globalSearch) list = list.filter(function(sh){ return normTitle(sh.title).indexOf(globalSearch) >= 0; });
+    var groups = {};
+    list.forEach(function(sh){
+      var k = sh.category + '|' + normTitle(sh.title);
+      (groups[k] = groups[k] || { title: sh.title, category: sh.category, sheets: [] }).sheets.push(sh);
+    });
+    var ordered = Object.keys(groups).map(function(k){ return groups[k]; }).sort(function(a,b){ return normTitle(a.title).localeCompare(normTitle(b.title)); });
+    var cards = ordered.map(function(g){
+      g.sheets.sort(function(a,b){ var ai = KEYS.indexOf(a.key), bi = KEYS.indexOf(b.key); return (ai<0?99:ai) - (bi<0?99:bi); });
+      var catColor = CAT_COLOR[g.category] || 'var(--navy-800)';
+      return '<div class="sheet-row" style="flex-direction:column;align-items:stretch;gap:10px">' +
+        '<div><b style="font-size:16px">' + esc(g.title) + '</b> <span class="song-cat-tag" style="color:' + catColor + ';margin-left:6px">' + esc(g.category) + '</span>' +
+        '<div style="font-size:12px;color:var(--ink-soft)">' + g.sheets.length + ' key' + (g.sheets.length===1?'':'s') + '</div></div>' +
+        g.sheets.map(function(sh){
+          return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)">' +
+            '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;min-width:44px;text-align:center">' + esc(sh.key||'—') + '</b>' +
+            '<div style="flex:1;min-width:0;font-size:12.5px;color:var(--ink-soft)">' + esc(sheetKindLabel(sh)) + '</div>' +
+            '<button class="btn small" data-tsview="' + sh.id + '">View</button>' +
+            (canManageSheet(sh) ? '<button class="btn ghost small" data-tsedit="' + sh.id + '">Edit</button>' : '') +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="panel-head"><div><h2 class="display">Team Sheets</h2><p>Chord and lead sheets, saved under Praise or Worship. The same song in different keys is grouped together.</p></div>' +
+      '<button class="btn gold" id="btn-add-teamsheet">+ Upload team sheet</button></div>' +
+      '<div class="filterbar" id="teamsheet-filters">' + ['all','Praise','Worship'].map(function(f){ return '<button class="chip' + (teamSheetFilter===f?' active':'') + '" data-tsfilter="' + f + '">' + (f==='all'?'All':f) + '</button>'; }).join('') + '</div>' +
+      (ordered.length ? '<div class="sheet-list">' + cards + '</div>' : '<div class="empty-note">' + (globalSearch ? 'No team sheets match your search.' : 'No team sheets yet — upload the first one.') + '</div>');
+    document.getElementById('btn-add-teamsheet').onclick = function(){ openTeamSheetModal(null); };
+    el.querySelectorAll('[data-tsfilter]').forEach(function(b){ b.onclick = function(){ teamSheetFilter = b.dataset.tsfilter; renderTeamSheets(); }; });
+    el.querySelectorAll('[data-tsview]').forEach(function(b){ b.onclick = function(){ openSheetViewer(b.dataset.tsview); }; });
+    el.querySelectorAll('[data-tsedit]').forEach(function(b){ b.onclick = function(){ openTeamSheetModal(teamSheets.find(function(x){ return x.id === b.dataset.tsedit; })); }; });
+  }
+
+  function openSheetViewer(id){
+    var sh = teamSheets.find(function(x){ return x.id === id; }); if (!sh) return;
+    var siblings = teamSheets.filter(function(x){ return x.category === sh.category && normTitle(x.title) === normTitle(sh.title); })
+      .sort(function(a,b){ var ai = KEYS.indexOf(a.key), bi = KEYS.indexOf(b.key); return (ai<0?99:ai) - (bi<0?99:bi); });
+    var content;
+    if (sh.pageUrls && sh.pageUrls.length) content = sh.pageUrls.map(function(u){ return '<img src="' + esc(u) + '" alt="' + esc(sh.title) + '" loading="lazy" style="width:100%;border:1px solid var(--line);border-radius:8px;margin-bottom:10px;background:#fff">'; }).join('');
+    else if (sh.body) content = '<pre class="chord-body">' + esc(sh.body) + '</pre>';
+    else if (sh.fileUrl) content = '<img src="' + esc(sh.fileUrl) + '" alt="' + esc(sh.title) + '" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#fff">';
+    else content = '<div class="empty-note">This sheet has no content yet.</div>';
+    var openUrl = (sh.pageUrls && sh.pageUrls[0]) || sh.fileUrl;
+    document.getElementById('sheetview-body').innerHTML =
+      '<div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
+        '<div style="flex:1;min-width:0"><h3 style="margin:0">' + esc(sh.title) + '</h3><div style="font-size:12.5px;color:var(--ink-soft)">' + esc(sh.category) + ' &middot; key of ' + esc(sh.key||'—') + '</div></div>' +
+        (openUrl ? '<a class="btn ghost small" target="_blank" rel="noopener noreferrer" href="' + esc(openUrl) + '">Open in new tab</a>' : '') +
+      '</div>' +
+      (siblings.length > 1 ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><span style="font-size:12px;color:var(--ink-soft);align-self:center">Other keys:</span>' + siblings.map(function(x){ return '<button class="chip' + (x.id===sh.id?' active':'') + '" data-tsjump="' + x.id + '">' + esc(x.key||'—') + '</button>'; }).join('') + '</div>' : '') +
+      content;
+    document.querySelectorAll('#sheetview-body [data-tsjump]').forEach(function(b){ b.onclick = function(){ openSheetViewer(b.dataset.tsjump); }; });
+    document.getElementById('sheetview-overlay').classList.add('active');
+  }
+  document.getElementById('btn-close-sheetview').addEventListener('click', function(){ document.getElementById('sheetview-overlay').classList.remove('active'); });
+
+  function openTeamSheetModal(sh){
+    editingTeamSheetId = sh ? sh.id : null;
+    document.getElementById('teamsheet-modal-title').textContent = sh ? 'Edit team sheet' : 'Upload team sheet';
+    document.getElementById('btn-delete-teamsheet').style.display = sh ? '' : 'none';
+    document.getElementById('ts-title').value = sh ? sh.title : '';
+    document.getElementById('ts-key').innerHTML = '<option value="">— key —</option>' + KEYS.map(function(k){ return '<option>' + k + '</option>'; }).join('');
+    document.getElementById('ts-key').value = sh ? (sh.key||'') : '';
+    var cat = (sh && sh.category) || (teamSheetFilter === 'Worship' ? 'Worship' : 'Praise');
+    document.querySelectorAll('input[name="ts-cat"]').forEach(function(r){ r.checked = r.value === cat; });
+    document.getElementById('ts-file').value = '';
+    document.getElementById('ts-body').value = sh && sh.body ? sh.body : '';
+    document.getElementById('ts-file-note').textContent = sh ? 'Editing keeps the current file or text unless you choose a new file or change the text.' : 'Reuse the same title for another key and the sheets are grouped together.';
+    var titles = uniq(teamSheets.map(function(x){ return x.title; })).sort();
+    document.getElementById('ts-titles').innerHTML = titles.map(function(t){ return '<option value="' + esc(t) + '">'; }).join('');
+    document.getElementById('teamsheet-overlay').classList.add('active');
+  }
+  document.getElementById('btn-cancel-teamsheet').addEventListener('click', function(){ document.getElementById('teamsheet-overlay').classList.remove('active'); });
+  function isTextFile(f){ return /^text\//.test(f.type) || /\.(txt|cho|pro|crd|md)$/i.test(f.name); }
+  document.getElementById('btn-save-teamsheet').addEventListener('click', async function(){
+    var title = document.getElementById('ts-title').value.trim();
+    var key = document.getElementById('ts-key').value;
+    if (!title){ toast('Add the song title.'); return; }
+    if (!key){ toast('Choose the key.'); return; }
+    var existing = editingTeamSheetId ? teamSheets.find(function(x){ return x.id === editingTeamSheetId; }) : null;
+    var data = { title: title, key: key, category: (document.querySelector('input[name="ts-cat"]:checked')||{}).value || 'Praise',
+      body: '', fileUrl: null, pageUrls: [], contentType: null, uploadedBy: (existing && existing.uploadedBy) || myId, createdAt: (existing && existing.createdAt) || Date.now() };
+    var pasted = document.getElementById('ts-body').value;
+    var file = document.getElementById('ts-file').files[0];
+    try {
+      if (file){
+        if (isTextFile(file)){
+          if (file.size > 400000){ toast('That text file is too large (400 KB max).'); return; }
+          data.body = await file.text(); data.contentType = 'text/plain';
+        } else {
+          toast('Uploading...');
+          var up = await uploadToCloudinary(file);
+          data.fileUrl = up.url; data.pageUrls = up.pageUrls || []; data.contentType = up.contentType;
+        }
+      } else if (pasted.trim() && (!existing || pasted !== (existing.body||'') || !(existing.fileUrl))){
+        if (pasted.length > 400000){ toast('That text is too long (400 KB max).'); return; }
+        data.body = pasted; data.contentType = 'text/plain';
+      } else if (existing){
+        data.body = existing.body || ''; data.fileUrl = existing.fileUrl || null; data.pageUrls = existing.pageUrls || []; data.contentType = existing.contentType || null;
+      } else { toast('Upload a file or paste the text.'); return; }
+      if (editingTeamSheetId) await db.collection('teamSheets').doc(editingTeamSheetId).set(data);
+      else await db.collection('teamSheets').add(data);
+      document.getElementById('teamsheet-overlay').classList.remove('active');
+      toast('Team sheet saved.');
+    } catch(err){ toast('Could not save (' + (err.code||err.message||'error') + ').'); }
+  });
+  document.getElementById('btn-delete-teamsheet').addEventListener('click', async function(){
+    if (!editingTeamSheetId) return;
+    if (!confirm('Delete this team sheet?')) return;
+    try {
+      await db.collection('teamSheets').doc(editingTeamSheetId).delete();
+      document.getElementById('teamsheet-overlay').classList.remove('active');
+      toast('Deleted.');
+    } catch(err){ toast('Could not delete.'); }
+  });
+
   // ---------- rota: send ----------
   function buildRosterMessage(){
     var s = curService(); if (!s) return '';
@@ -2067,6 +2243,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     globalSearch = e.target.value.trim().toLowerCase();
     renderSongs();
     renderResources();
+    renderTeamSheets();
   });
 
   function resIcon(r){
@@ -2364,6 +2541,12 @@ import { cloudinaryConfig } from './cloudinary-config.js';
           teamUsers = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           renderTeam(); renderServiceViews();
         }, function(){ toast('Could not load team.'); });
+      } catch(e){}
+      try {
+        db.collection('teamSheets').onSnapshot(function(snap){
+          teamSheets = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderTeamSheets();
+        }, function(){ toast('Could not load team sheets.'); });
       } catch(e){}
       try {
         db.collection('songLibrary').onSnapshot(function(snap){

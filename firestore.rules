@@ -77,6 +77,15 @@ service cloud.firestore {
       allow delete: if signedIn() && (resource.data.userId == request.auth.uid || isTeamLead());
     }
 
+    // Team sheets (chord/lead sheets by song and key): everyone reads, any
+    // signed-in member can upload one, and only its uploader or a team lead
+    // can edit or delete it.
+    match /teamSheets/{sheetId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uploadedBy == request.auth.uid;
+      allow update, delete: if signedIn() && (resource.data.uploadedBy == request.auth.uid || isTeamLead());
+    }
+
     // Resources: everyone reads, any signed-in member can add one, only a
     // team lead can edit/delete.
     match /resources/{resourceId} {
