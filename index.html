@@ -1042,6 +1042,8 @@ import { AI_WORKER_URL } from './ai-config.js';
       var w = lastD ? weeksBetweenISO(lastD, svc.date) : null;
       var warn = (w !== null && w < gapW) ? '<div style="font-size:10.5px;font-weight:700;color:var(--no);margin-top:2px">played ' + w + ' week' + (w===1?'':'s') + ' ago</div>' : '';
       var lyricsOpen = !!expandedSongs[s.id];
+      var linkedSheets = sheetsForTitle(s.title);
+      var hasLyricsOrSheet = !!(s.lyricsChords || linkedSheets.length);
       card.dataset.songid = s.id;
       card.innerHTML =
         '<div class="song-card-head">' +
@@ -1060,9 +1062,18 @@ import { AI_WORKER_URL } from './ai-config.js';
           instLine('Electric 1', s.electric1) + instLine('Electric 2', s.electric2) +
         '</div>' +
         '<div class="song-card-actions">' +
-          (s.lyricsChords ? '<button class="btn ghost small" data-lyricstoggle="' + s.id + '">' + (lyricsOpen ? 'Hide lyrics &amp; chords &#9652;' : 'Lyrics &amp; chords &#9662;') + '</button>' : '') +
+          (hasLyricsOrSheet ? '<button class="btn ghost small" data-lyricstoggle="' + s.id + '">' + (lyricsOpen ? 'Hide lyrics &amp; chords &#9652;' : 'Lyrics &amp; chords &#9662;') + '</button>' : '') +
         '</div>' +
-        (lyricsOpen && s.lyricsChords ? '<div class="lyrics-panel"><pre>' + esc(s.lyricsChords) + '</pre></div>' : '');
+        (lyricsOpen ? '<div class="lyrics-panel">' +
+          (s.lyricsChords ? '<pre>' + esc(s.lyricsChords) + '</pre>' : '') +
+          (linkedSheets.length ? (s.lyricsChords ? '<div style="height:10px"></div>' : '') +
+            '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px">Chord sheet' + (linkedSheets.length>1?'s':'') + ' (Team Sheets)</div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap">' + linkedSheets.map(function(sh){
+              return '<button class="chip" data-cardsheetview="' + sh.id + '">' + esc(sh.key||'—') + ' &middot; ' + esc(sheetKindLabel(sh)) + '</button>';
+            }).join('') + '</div>'
+          : '') +
+          (!s.lyricsChords && !linkedSheets.length ? '<p class="tiny-note" style="margin:0">No lyrics, chords or chord sheet added yet.</p>' : '') +
+        '</div>' : '');
       if (canEdit){
         var actions = card.querySelector('.song-card-actions');
         var editBtn = document.createElement('button');
@@ -1090,6 +1101,7 @@ import { AI_WORKER_URL } from './ai-config.js';
       }
       var lyricsToggleBtn = card.querySelector('[data-lyricstoggle]');
       if (lyricsToggleBtn) lyricsToggleBtn.onclick = function(){ expandedSongs[s.id] = !expandedSongs[s.id]; renderSongs(); };
+      card.querySelectorAll('[data-cardsheetview]').forEach(function(b){ b.onclick = function(){ openSheetViewer(b.dataset.cardsheetview); }; });
       grid.appendChild(card);
     });
     renderLeaderLegend();
