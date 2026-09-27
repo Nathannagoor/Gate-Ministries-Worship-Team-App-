@@ -1002,6 +1002,17 @@ import { AI_WORKER_URL } from './ai-config.js';
       }));
     } catch(err){ toast('Could not reorder.'); }
   }
+  async function deleteSongWithUndo(s){
+    if (!confirm('Delete "' + s.title + '" from this arrangement?')) return;
+    var copy = Object.assign({}, s); delete copy.id;
+    try {
+      await db.collection('songs').doc(s.id).delete();
+      toastUndo('Deleted "' + s.title + '".', async function(){
+        try { await db.collection('songs').add(copy); toast('Restored.'); }
+        catch(e){ toast('Could not restore — sorry.'); }
+      }, 8000);
+    } catch(err){ toast('Could not delete that song.'); }
+  }
 
   function renderSongs(){
     renderServiceSwitcher('service-switcher-arrangements');
@@ -1071,6 +1082,11 @@ import { AI_WORKER_URL } from './ai-config.js';
         down.className = 'btn ghost small'; down.innerHTML = '&darr;'; down.disabled = pos === full.length-1; down.title = 'Move later';
         down.onclick = function(){ moveSong(s.id, 1); };
         actions.appendChild(down);
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn danger small'; delBtn.innerHTML = '&#128465;';
+        delBtn.title = 'Delete this song';
+        delBtn.onclick = function(){ deleteSongWithUndo(s); };
+        actions.appendChild(delBtn);
       }
       var lyricsToggleBtn = card.querySelector('[data-lyricstoggle]');
       if (lyricsToggleBtn) lyricsToggleBtn.onclick = function(){ expandedSongs[s.id] = !expandedSongs[s.id]; renderSongs(); };
