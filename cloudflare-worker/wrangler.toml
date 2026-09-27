@@ -1,0 +1,14 @@
+name = "gate-worship-idea-cleanup"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Optional: lock the Worker down to only accept requests from your site.
+# Replace with your real GitHub Pages URL (no trailing slash), e.g.
+# "https://nathannagoor.github.io". Leave commented out (defaults to "*",
+# any site) while you're first testing it.
+# [vars]
+# ALLOWED_ORIGIN = "https://nathannagoor.github.io"
+
+# ANTHROPIC_API_KEY is a secret, not a plain var - set it with:
+#   wrangler secret put ANTHROPIC_API_KEY
+# (do NOT put it in this file, it would get committed to git)

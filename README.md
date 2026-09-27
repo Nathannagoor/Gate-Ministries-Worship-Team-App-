@@ -87,6 +87,39 @@ is allowed by default).
 4. Visit the GitHub Pages URL — you should see the sign-in gate, then the
    hub once you sign in with Google.
 
+## Optional: AI clean-up for arrangement ideas
+
+Voice-note ideas (see below) work out of the box for free with no setup —
+the browser transcribes speech to text itself. If you'd also like a
+"✨ Clean up with Claude" button that tidies up the transcript (fixes
+wording, keeps it concise) before saving, you need two things of your own:
+an Anthropic API key, and a small proxy server to call it from safely (a
+browser can't hold that key without exposing it to anyone who opens dev
+tools). This costs a little — usage-based, typically well under $2/month
+for a small team's worth of notes — and takes about 10 minutes to set up.
+
+1. Get an Anthropic API key at [console.anthropic.com](https://console.anthropic.com) (Settings → API Keys). You'll need a card on file there; it's billed per use, not a subscription.
+2. Install the Cloudflare CLI and log in:
+   ```bash
+   npm install -g wrangler
+   wrangler login
+   ```
+3. Deploy the Worker in this repo:
+   ```bash
+   cd cloudflare-worker
+   wrangler secret put ANTHROPIC_API_KEY   # paste your key when prompted
+   wrangler deploy
+   ```
+   `wrangler deploy` prints a URL like `https://gate-worship-idea-cleanup.<your-subdomain>.workers.dev` — that's your Worker's address.
+4. (Optional but recommended) Lock it down to your own site: uncomment the `[vars]` / `ALLOWED_ORIGIN` lines in `cloudflare-worker/wrangler.toml`, set it to your GitHub Pages URL, and run `wrangler deploy` again.
+5. Back in the main project folder, put that URL into `ai-config.js`:
+   ```js
+   export const AI_WORKER_URL = 'https://gate-worship-idea-cleanup.<your-subdomain>.workers.dev';
+   ```
+6. Commit and push `ai-config.js`. The "✨ Clean up with Claude" button appears in the idea recorder automatically once `AI_WORKER_URL` is set, and disappears (no error, just hidden) if left blank.
+
+None of this touches your Firebase plan or bill — Cloudflare Workers' free tier (100,000 requests/day) is a separate, no-card-required account, and the only Firebase-adjacent cost stays the small, usage-based Anthropic bill.
+
 ## Data model
 
 | Collection      | Written by                          | Notes |
@@ -125,12 +158,6 @@ team's free-tier usage.
   browser's built-in speech-to-text (the Web Speech API — supported in
   Chrome and Edge, not Safari or Firefox), which is free and runs entirely
   client-side, so no extra account or API key is needed; the transcript can
-  be edited before saving. This is a straightforward voice-to-text capture,
-  not an AI assistant — there's no equivalent here to the "Claude" AI
-  clean-up step available inside a claude.ai artifact, since that requires
-  a Claude API key and a small backend to call it from safely. If you want
-  a genuine AI clean-up pass on these notes later, that would mean adding
-  an Anthropic API key plus a lightweight serverless function (e.g. a
-  Firebase Cloud Function on the paid Blaze plan, or a free-tier Cloudflare
-  Worker) to proxy the request — a deliberate next step rather than
-  something wired up by default here.
+  be edited before saving. An optional "✨ Clean up with Claude" button can
+  also tidy up the transcript using the real Anthropic API — see "Optional:
+  AI clean-up for arrangement ideas" below for the (small) cost and setup.

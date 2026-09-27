@@ -457,6 +457,10 @@
       <span class="record-status" id="record-status"></span>
     </div>
     <div class="field"><label>Idea</label><textarea id="idea-text" style="min-height:110px" placeholder="Speak or type your idea for this arrangement..."></textarea></div>
+    <div class="modal-actions" style="justify-content:flex-start" id="idea-ai-row">
+      <button class="btn ghost small" id="btn-clean-idea">&#10024; Clean up with Claude</button>
+      <span class="record-status" id="idea-ai-status"></span>
+    </div>
     <div class="modal-actions">
       <button class="btn ghost" id="btn-cancel-idea">Close</button>
       <button class="btn gold" id="btn-save-idea">Save idea</button>
@@ -681,6 +685,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { firebaseConfig } from './firebase-config.js';
 import { cloudinaryConfig } from './cloudinary-config.js';
+import { AI_WORKER_URL } from './ai-config.js';
 
 (function(){
 
@@ -1234,9 +1239,36 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     document.getElementById('idea-song-title').textContent = ideaSongTitle ? ' — ' + ideaSongTitle : '';
     document.getElementById('idea-text').value = '';
     document.getElementById('record-status').textContent = SpeechRec ? '' : 'Voice recording isn’t supported in this browser — you can still type your idea.';
+    document.getElementById('idea-ai-row').style.display = AI_WORKER_URL ? '' : 'none';
+    document.getElementById('idea-ai-status').textContent = '';
     renderIdeaList();
     ideaOverlay.classList.add('active');
   }
+  document.getElementById('btn-clean-idea').addEventListener('click', async function(){
+    var ta = document.getElementById('idea-text');
+    var text = ta.value.trim();
+    var status = document.getElementById('idea-ai-status');
+    if (!text){ status.textContent = 'Type or record something first.'; return; }
+    if (!AI_WORKER_URL){ status.textContent = 'AI clean-up isn’t set up yet.'; return; }
+    if (ideaRecording) stopIdeaRecording();
+    var btn = document.getElementById('btn-clean-idea');
+    btn.disabled = true; status.textContent = 'Tidying up…';
+    try {
+      var resp = await fetch(AI_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      });
+      var data = await resp.json();
+      if (!resp.ok || !data.text){ throw new Error((data && data.error) || 'Failed'); }
+      ta.value = data.text.trim();
+      status.textContent = 'Cleaned up — feel free to edit further before saving.';
+    } catch(err){
+      status.textContent = 'Could not clean up right now (' + (err.message || 'error') + '). Your original text is untouched.';
+    } finally {
+      btn.disabled = false;
+    }
+  });
   document.getElementById('btn-cancel-idea').addEventListener('click', function(){ stopIdeaRecording(); ideaOverlay.classList.remove('active'); });
   document.getElementById('btn-save-idea').addEventListener('click', async function(){
     var text = document.getElementById('idea-text').value.trim();
