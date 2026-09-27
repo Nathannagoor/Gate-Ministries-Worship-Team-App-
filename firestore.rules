@@ -112,5 +112,14 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.submittedBy == request.auth.uid;
       allow update: if isTeamLead();
     }
+
+    // Arrangement ideas (voice-note or typed notes on a song): everyone on
+    // the team reads, only a team lead records one (as themselves), and it
+    // can be removed by its author or a team lead.
+    match /ideas/{docId} {
+      allow read: if signedIn();
+      allow create: if isTeamLead() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isTeamLead());
+    }
   }
 }

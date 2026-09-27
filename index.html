@@ -134,7 +134,19 @@
   .inst-line { display: flex; gap: 8px; font-size: 12.5px; }
   .inst-line .inst-label { font-weight: 700; color: var(--ink); min-width: 78px; }
   .inst-line .inst-val { color: var(--ink-soft); }
-  .song-card-actions { margin-top: auto; padding: 8px 14px 14px; display: flex; gap: 8px; }
+  .song-card-actions { margin-top: auto; padding: 8px 14px 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .lyrics-panel { margin: 0 14px 14px; padding: 12px; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: var(--card); }
+  .lyrics-panel pre { white-space: pre-wrap; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12.5px; line-height: 1.55; margin: 0; color: var(--ink); }
+  .idea-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; max-height: 240px; overflow-y: auto; }
+  .idea-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--card); }
+  .idea-item .idea-meta { font-size: 11px; color: var(--ink-soft); margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; }
+  .idea-item p { margin: 0; font-size: 13px; white-space: pre-wrap; }
+  .record-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+  .btn-record { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); font-weight: 700; cursor: pointer; }
+  .btn-record .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--no); }
+  .btn-record.recording .dot { animation: pulse-rec 1s infinite; }
+  @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .record-status { font-size: 12px; color: var(--ink-soft); }
 
   /* Chord library */
   .folder-tabs { display: flex; gap: 10px; margin-bottom: 18px; }
@@ -423,6 +435,7 @@
     <div class="field"><label>Acoustic guitar</label><input id="f-acoustic1" placeholder="Standard"></div>
     <div class="field"><label>Electric guitar 1</label><input id="f-electric1" placeholder="Clean, light reverb"></div>
     <div class="field"><label>Electric guitar 2</label><input id="f-electric2" placeholder="Clean, light reverb"></div>
+    <div class="field"><label>Lyrics &amp; chords</label><textarea id="f-lyrics" style="min-height:140px;font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px" placeholder="Paste the lyrics with chords above the words, e.g.&#10;G          D&#10;Amazing grace how sweet the sound"></textarea></div>
     <div class="field" id="f-savelib-field">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px"><input type="checkbox" id="f-savelib" style="width:auto" checked> Also save to the Song Library (so next time it fills in automatically)</label>
     </div>
@@ -431,6 +444,24 @@
       <button class="btn ghost" id="btn-cancel-song">Cancel</button>
       <button class="btn gold" id="btn-save-song">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- Voice-note arrangement ideas -->
+<div class="overlay" id="idea-overlay">
+  <div class="modal">
+    <h3>Arrangement idea<span id="idea-song-title" style="font-weight:400"></span></h3>
+    <p class="hint">Record a quick voice note instead of typing &mdash; it's transcribed right in your browser, then edit the text before saving.</p>
+    <div class="record-row">
+      <button class="btn-record" id="btn-toggle-record"><span class="dot"></span><span id="record-label">Record</span></button>
+      <span class="record-status" id="record-status"></span>
+    </div>
+    <div class="field"><label>Idea</label><textarea id="idea-text" style="min-height:110px" placeholder="Speak or type your idea for this arrangement..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-idea">Close</button>
+      <button class="btn gold" id="btn-save-idea">Save idea</button>
+    </div>
+    <div class="idea-list" id="idea-list"></div>
   </div>
 </div>
 
@@ -833,6 +864,10 @@ import { cloudinaryConfig } from './cloudinary-config.js';
   var editingSongId = null;
   var editingResourceId = null;
   var profileCache = {};
+  var expandedSongs = {};
+  var ideas = [];
+  var ideaSongId = null, ideaSongTitle = '';
+  var ideaRecognition = null, ideaRecording = false, ideaFinalText = '';
 
   // rota state
   var config = { churchName: '', positions: [
@@ -937,6 +972,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       var lastD = lastPlayedBefore(s.title, svc);
       var w = lastD ? weeksBetweenISO(lastD, svc.date) : null;
       var warn = (w !== null && w < gapW) ? '<div style="font-size:10.5px;font-weight:700;color:var(--no);margin-top:2px">played ' + w + ' week' + (w===1?'':'s') + ' ago</div>' : '';
+      var lyricsOpen = !!expandedSongs[s.id];
+      card.dataset.songid = s.id;
       card.innerHTML =
         '<div class="song-card-head">' +
           '<div class="song-num" style="background:' + songBadgeColor(pos) + '">' + (pos+1) + '</div>' +
@@ -953,13 +990,21 @@ import { cloudinaryConfig } from './cloudinary-config.js';
           instLine('Keys', s.keys) + instLine('Pads', s.pads) + instLine('Acoustic', s.acoustic1) +
           instLine('Electric 1', s.electric1) + instLine('Electric 2', s.electric2) +
         '</div>' +
-        '<div class="song-card-actions"></div>';
+        '<div class="song-card-actions">' +
+          (s.lyricsChords ? '<button class="btn ghost small" data-lyricstoggle="' + s.id + '">' + (lyricsOpen ? 'Hide lyrics &amp; chords &#9652;' : 'Lyrics &amp; chords &#9662;') + '</button>' : '') +
+        '</div>' +
+        (lyricsOpen && s.lyricsChords ? '<div class="lyrics-panel"><pre>' + esc(s.lyricsChords) + '</pre></div>' : '');
       if (canEdit){
         var actions = card.querySelector('.song-card-actions');
         var editBtn = document.createElement('button');
         editBtn.className = 'btn ghost small'; editBtn.textContent = 'Edit';
         editBtn.onclick = function(){ openSongModal(s); };
         actions.appendChild(editBtn);
+        var ideaBtn = document.createElement('button');
+        ideaBtn.className = 'btn ghost small'; ideaBtn.innerHTML = '&#127908; Idea';
+        ideaBtn.title = 'Record a voice-note arrangement idea';
+        ideaBtn.onclick = function(){ openIdeaModal(s.id, s.title); };
+        actions.appendChild(ideaBtn);
         var up = document.createElement('button');
         up.className = 'btn ghost small'; up.innerHTML = '&uarr;'; up.disabled = pos === 0; up.title = 'Move earlier';
         up.onclick = function(){ moveSong(s.id, -1); };
@@ -969,6 +1014,8 @@ import { cloudinaryConfig } from './cloudinary-config.js';
         down.onclick = function(){ moveSong(s.id, 1); };
         actions.appendChild(down);
       }
+      var lyricsToggleBtn = card.querySelector('[data-lyricstoggle]');
+      if (lyricsToggleBtn) lyricsToggleBtn.onclick = function(){ expandedSongs[s.id] = !expandedSongs[s.id]; renderSongs(); };
       grid.appendChild(card);
     });
     renderLeaderLegend();
@@ -1036,7 +1083,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     var u = teamUsers.find(function(x){ return (x.name||'').trim().toLowerCase() === n; });
     return (u && lib.keys && lib.keys[u.id]) || '';
   }
-  var ARR_FIELDS = [['f-category','category'],['f-tempo','tempo'],['f-time','timeSig'],['f-bvs','bvs'],['f-keys','keys'],['f-pads','pads'],['f-acoustic1','acoustic1'],['f-electric1','electric1'],['f-electric2','electric2']];
+  var ARR_FIELDS = [['f-category','category'],['f-tempo','tempo'],['f-time','timeSig'],['f-bvs','bvs'],['f-keys','keys'],['f-pads','pads'],['f-acoustic1','acoustic1'],['f-electric1','electric1'],['f-electric2','electric2'],['f-lyrics','lyricsChords']];
   function readArrFromForm(){
     var o = {};
     ARR_FIELDS.forEach(function(p){ o[p[1]] = document.getElementById(p[0]).value.trim(); });
@@ -1062,6 +1109,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     f('f-time', song && song.timeSig); f('f-leader', song && song.leaderName); f('f-bvs', song && song.bvs);
     f('f-keys', song && song.keys); f('f-pads', song && song.pads); f('f-acoustic1', song && song.acoustic1);
     f('f-electric1', song && song.electric1); f('f-electric2', song && song.electric2);
+    f('f-lyrics', song && song.lyricsChords);
     document.getElementById('f-category').value = (song && song.category) || 'Praise';
     var libField = document.getElementById('f-library-field');
     var libs = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
@@ -1093,6 +1141,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       acoustic1: document.getElementById('f-acoustic1').value.trim(),
       electric1: document.getElementById('f-electric1').value.trim(),
       electric2: document.getElementById('f-electric2').value.trim(),
+      lyricsChords: document.getElementById('f-lyrics').value.trim(),
       serviceId: serviceId,
       order: existing ? (existing.order || inService.length) : (inService.reduce(function(m,x){ return Math.max(m, x.order||0); }, 0) + 1)
     };
@@ -1115,6 +1164,95 @@ import { cloudinaryConfig } from './cloudinary-config.js';
     if (!editingSongId) return;
     try { await db.collection('songs').doc(editingSongId).delete(); songOverlay.classList.remove('active'); toast('Deleted.'); }
     catch(err){ toast('Could not delete.'); }
+  });
+
+  // ---------- voice-note arrangement ideas ----------
+  var ideaOverlay = document.getElementById('idea-overlay');
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function stopIdeaRecording(){
+    if (ideaRecognition){ try { ideaRecognition.stop(); } catch(e){} }
+    ideaRecording = false;
+    var btn = document.getElementById('btn-toggle-record');
+    btn.classList.remove('recording');
+    document.getElementById('record-label').textContent = 'Record';
+  }
+  function startIdeaRecording(){
+    if (!SpeechRec){
+      document.getElementById('record-status').textContent = 'Voice recording isn’t supported in this browser — try Chrome or Edge, or just type your idea.';
+      return;
+    }
+    ideaFinalText = document.getElementById('idea-text').value ? document.getElementById('idea-text').value.trim() + ' ' : '';
+    ideaRecognition = new SpeechRec();
+    ideaRecognition.continuous = true;
+    ideaRecognition.interimResults = true;
+    ideaRecognition.lang = 'en-US';
+    ideaRecognition.onresult = function(e){
+      var interim = '';
+      for (var i = e.resultIndex; i < e.results.length; i++){
+        var chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) ideaFinalText += chunk + ' ';
+        else interim += chunk;
+      }
+      document.getElementById('idea-text').value = (ideaFinalText + interim).trim();
+    };
+    ideaRecognition.onerror = function(e){
+      document.getElementById('record-status').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked.' : 'Recording stopped (' + e.error + ').';
+      stopIdeaRecording();
+    };
+    ideaRecognition.onend = function(){ if (ideaRecording){ ideaRecording = false; document.getElementById('btn-toggle-record').classList.remove('recording'); document.getElementById('record-label').textContent = 'Record'; } };
+    try {
+      ideaRecognition.start();
+      ideaRecording = true;
+      document.getElementById('btn-toggle-record').classList.add('recording');
+      document.getElementById('record-label').textContent = 'Stop';
+      document.getElementById('record-status').textContent = 'Listening… speak your idea, then tap Stop.';
+    } catch(e){
+      document.getElementById('record-status').textContent = 'Could not start the microphone.';
+    }
+  }
+  document.getElementById('btn-toggle-record').addEventListener('click', function(){
+    if (ideaRecording) stopIdeaRecording(); else startIdeaRecording();
+  });
+  function renderIdeaList(){
+    var el = document.getElementById('idea-list');
+    if (!el || !ideaSongId) return;
+    var mine = ideas.filter(function(i){ return i.songId === ideaSongId; }).sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+    if (!mine.length){ el.innerHTML = '<p class="tiny-note">No ideas recorded yet for this song.</p>'; return; }
+    el.innerHTML = mine.map(function(i){
+      var canDel = canEdit || i.authorId === myId;
+      return '<div class="idea-item"><div class="idea-meta"><span>' + esc(i.authorName||'Someone') + (i.createdAt ? ' &middot; ' + esc(new Date(i.createdAt).toLocaleDateString()) : '') + '</span>' +
+        (canDel ? '<button class="btn ghost small" data-idea-del="' + i.id + '" style="padding:2px 8px">Delete</button>' : '') + '</div>' +
+        '<p>' + esc(i.text) + '</p></div>';
+    }).join('');
+    el.querySelectorAll('[data-idea-del]').forEach(function(b){
+      b.onclick = async function(){ try { await db.collection('ideas').doc(b.dataset.ideaDel).delete(); } catch(e){ toast('Could not delete idea.'); } };
+    });
+  }
+  function openIdeaModal(songId, songTitle){
+    ideaSongId = songId; ideaSongTitle = songTitle || '';
+    document.getElementById('idea-song-title').textContent = ideaSongTitle ? ' — ' + ideaSongTitle : '';
+    document.getElementById('idea-text').value = '';
+    document.getElementById('record-status').textContent = SpeechRec ? '' : 'Voice recording isn’t supported in this browser — you can still type your idea.';
+    renderIdeaList();
+    ideaOverlay.classList.add('active');
+  }
+  document.getElementById('btn-cancel-idea').addEventListener('click', function(){ stopIdeaRecording(); ideaOverlay.classList.remove('active'); });
+  document.getElementById('btn-save-idea').addEventListener('click', async function(){
+    var text = document.getElementById('idea-text').value.trim();
+    if (!text){ toast('Type or record an idea first.'); return; }
+    if (!db){ toast('Not connected.'); return; }
+    try {
+      stopIdeaRecording();
+      var me = await (userNs ? userNs.me() : Promise.resolve(null));
+      await db.collection('ideas').add({
+        songId: ideaSongId, songTitle: ideaSongTitle,
+        text: text, authorId: myId, authorName: (me && me.name) || 'Someone',
+        createdAt: new Date().toISOString()
+      });
+      document.getElementById('idea-text').value = '';
+      toast('Idea saved.');
+    } catch(err){ toast('Could not save idea.'); }
   });
 
   // ---------- shared name resolution ----------
@@ -1969,7 +2107,7 @@ import { cloudinaryConfig } from './cloudinary-config.js';
       var k = (x.title||'').trim().toLowerCase();
       if (!k || have[k]) return;
       have[k] = true;
-      toAdd.push({ title: x.title, key: x.key || '', ccli: '', keys: {}, arr: { category: x.category || 'Praise', tempo: x.tempo || '', timeSig: x.timeSig || '', bvs: x.bvs || '', keys: x.keys || '', pads: x.pads || '', acoustic1: x.acoustic1 || '', electric1: x.electric1 || '', electric2: x.electric2 || '' } });
+      toAdd.push({ title: x.title, key: x.key || '', ccli: '', keys: {}, arr: { category: x.category || 'Praise', tempo: x.tempo || '', timeSig: x.timeSig || '', bvs: x.bvs || '', keys: x.keys || '', pads: x.pads || '', acoustic1: x.acoustic1 || '', electric1: x.electric1 || '', electric2: x.electric2 || '', lyricsChords: x.lyricsChords || '' } });
     });
     if (!toAdd.length){ toast('Everything in Arrangements is already in the library.'); return; }
     try {
@@ -2553,6 +2691,12 @@ import { cloudinaryConfig } from './cloudinary-config.js';
           songLibrary = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           renderSongLibrary(); renderServiceViews();
         }, function(){ toast('Could not load song library.'); });
+      } catch(e){}
+      try {
+        db.collection('ideas').onSnapshot(function(snap){
+          ideas = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderIdeaList();
+        }, function(){});
       } catch(e){}
       try {
         var availQuery = canEdit ? db.collection('availability') : db.collection('availability').where('userId','==',myId);

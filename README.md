@@ -91,8 +91,9 @@ is allowed by default).
 
 | Collection      | Written by                          | Notes |
 |-----------------|--------------------------------------|-------|
-| `songs`         | team leads only                      | the arrangement for each service (`serviceId`, `order`, key, tempo, leader, instrument notes); this is the set list |
-| `songLibrary`   | team leads only                      | title, default key, CCLI, per-member keys, and the fixed arrangement details (`arr`: category, tempo, time, BVs, instrument notes) that prefill Arrangements |
+| `songs`         | team leads only                      | the arrangement for each service (`serviceId`, `order`, key, tempo, leader, instrument notes, lyrics & chords); this is the set list |
+| `songLibrary`   | team leads only                      | title, default key, CCLI, per-member keys, and the fixed arrangement details (`arr`: category, tempo, time, BVs, instrument notes, lyrics & chords) that prefill Arrangements |
+| `ideas`         | team leads only (create); author or team lead (delete) | quick arrangement notes per song, typed or spoken (transcribed in-browser); everyone signed in can read them |
 | `config/main`   | team leads only                      | church name, rehearsal time, roster positions (name + slot count), song repeat window |
 | `services`      | team leads only (regular Sundays are auto-created blank by any client as `sunday-YYYY-MM-DD`) | a dated/named service or special event: roster `assign`, `notes` |
 | `availability`  | each member (own answers), team leads (anyone) | one doc per person per service (`serviceId__userId`); private to the person and team leads |
@@ -115,3 +116,21 @@ team's free-tier usage.
   with a small Firebase-backed shim inside `index.html` that mimics the
   same `db` / `userNs` interface, so the rest of the script didn't need to
   change.
+- **Lyrics & chords**: each song (in Arrangements and the Song Library) has
+  an optional "Lyrics & chords" text field. When filled in, an
+  "Lyrics & chords ▾" toggle appears on that song's arrangement card so the
+  team can expand it in place.
+- **Arrangement ideas (voice notes)**: team leads can tap "🎤 Idea" on a
+  song card to record a quick arrangement note. Recording uses the
+  browser's built-in speech-to-text (the Web Speech API — supported in
+  Chrome and Edge, not Safari or Firefox), which is free and runs entirely
+  client-side, so no extra account or API key is needed; the transcript can
+  be edited before saving. This is a straightforward voice-to-text capture,
+  not an AI assistant — there's no equivalent here to the "Claude" AI
+  clean-up step available inside a claude.ai artifact, since that requires
+  a Claude API key and a small backend to call it from safely. If you want
+  a genuine AI clean-up pass on these notes later, that would mean adding
+  an Anthropic API key plus a lightweight serverless function (e.g. a
+  Firebase Cloud Function on the paid Blaze plan, or a free-tier Cloudflare
+  Worker) to proxy the request — a deliberate next step rather than
+  something wired up by default here.
