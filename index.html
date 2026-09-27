@@ -909,7 +909,7 @@ import { AI_WORKER_URL } from './ai-config.js';
   var expandedSongs = {};
   var ideas = [];
   var ideaSongId = null, ideaSongTitle = '';
-  var ideaRecognition = null, ideaRecording = false, ideaFinalText = '';
+  var ideaRecognition = null, ideaRecording = false, ideaFinalText = '', ideaSessionFinal = '';
 
   // rota state
   var config = { churchName: '', positions: [
@@ -1278,11 +1278,46 @@ import { AI_WORKER_URL } from './ai-config.js';
   var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   function stopIdeaRecording(){
-    if (ideaRecognition){ try { ideaRecognition.stop(); } catch(e){} }
     ideaRecording = false;
+    if (ideaRecognition){ try { ideaRecognition.stop(); } catch(e){} }
+    updateIdeaRecordUI(false);
+  }
+  function updateIdeaRecordUI(recording){
     var btn = document.getElementById('btn-toggle-record');
-    btn.classList.remove('recording');
-    document.getElementById('record-label').textContent = 'Record';
+    btn.classList.toggle('recording', recording);
+    document.getElementById('record-label').textContent = recording ? 'Stop' : 'Record';
+  }
+  function startIdeaRecognitionInstance(){
+    ideaRecognition = new SpeechRec();
+    ideaRecognition.continuous = true;
+    ideaRecognition.interimResults = true;
+    ideaRecognition.lang = 'en-US';
+    var finalMap = {};
+    ideaRecognition.onresult = function(e){
+      var interim = '';
+      for (var i = 0; i < e.results.length; i++){
+        if (e.results[i].isFinal) finalMap[i] = e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      var keys = Object.keys(finalMap).sort(function(a,b){ return a - b; });
+      ideaSessionFinal = keys.map(function(k){ return finalMap[k]; }).join(' ');
+      document.getElementById('idea-text').value = (ideaFinalText + ideaSessionFinal + ' ' + interim).trim();
+    };
+    ideaRecognition.onerror = function(e){
+      if (e.error === 'no-speech' || e.error === 'aborted') return; // let onend decide whether to restart
+      ideaRecording = false;
+      document.getElementById('record-status').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked.' : 'Recording stopped (' + e.error + ').';
+    };
+    ideaRecognition.onend = function(){
+      if (ideaSessionFinal){ ideaFinalText = (ideaFinalText + ideaSessionFinal + ' '); ideaSessionFinal = ''; }
+      if (ideaRecording){
+        // Many mobile browsers end an in-progress "continuous" recognition on
+        // their own every so often; restart seamlessly so it feels continuous.
+        try { startIdeaRecognitionInstance(); return; } catch(e){ ideaRecording = false; }
+      }
+      updateIdeaRecordUI(false);
+    };
+    ideaRecognition.start();
   }
   function startIdeaRecording(){
     if (!SpeechRec){
@@ -1290,31 +1325,14 @@ import { AI_WORKER_URL } from './ai-config.js';
       return;
     }
     ideaFinalText = document.getElementById('idea-text').value ? document.getElementById('idea-text').value.trim() + ' ' : '';
-    ideaRecognition = new SpeechRec();
-    ideaRecognition.continuous = true;
-    ideaRecognition.interimResults = true;
-    ideaRecognition.lang = 'en-US';
-    ideaRecognition.onresult = function(e){
-      var interim = '';
-      for (var i = e.resultIndex; i < e.results.length; i++){
-        var chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) ideaFinalText += chunk + ' ';
-        else interim += chunk;
-      }
-      document.getElementById('idea-text').value = (ideaFinalText + interim).trim();
-    };
-    ideaRecognition.onerror = function(e){
-      document.getElementById('record-status').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked.' : 'Recording stopped (' + e.error + ').';
-      stopIdeaRecording();
-    };
-    ideaRecognition.onend = function(){ if (ideaRecording){ ideaRecording = false; document.getElementById('btn-toggle-record').classList.remove('recording'); document.getElementById('record-label').textContent = 'Record'; } };
+    ideaSessionFinal = '';
     try {
-      ideaRecognition.start();
       ideaRecording = true;
-      document.getElementById('btn-toggle-record').classList.add('recording');
-      document.getElementById('record-label').textContent = 'Stop';
+      startIdeaRecognitionInstance();
+      updateIdeaRecordUI(true);
       document.getElementById('record-status').textContent = 'Listening… speak your idea, then tap Stop.';
     } catch(e){
+      ideaRecording = false;
       document.getElementById('record-status').textContent = 'Could not start the microphone.';
     }
   }
@@ -1391,7 +1409,7 @@ import { AI_WORKER_URL } from './ai-config.js';
 
   // ---------- voice-add a whole week's songs ----------
   var voiceBatchOverlay = document.getElementById('voice-batch-overlay');
-  var vbRecognition = null, vbRecording = false, vbFinalText = '';
+  var vbRecognition = null, vbRecording = false, vbFinalText = '', vbSessionFinal = '';
   var vbAddedCount = 0;
 
   function parseVoiceSong(raw){
@@ -1448,51 +1466,62 @@ import { AI_WORKER_URL } from './ai-config.js';
     document.getElementById('vb-bvs').value = p.bvs;
   }
   function stopVbRecording(){
-    if (vbRecognition){ try { vbRecognition.stop(); } catch(e){} }
     vbRecording = false;
-    document.getElementById('btn-vb-record').classList.remove('recording');
-    document.getElementById('vb-record-label').textContent = 'Record';
+    if (vbRecognition){ try { vbRecognition.stop(); } catch(e){} }
+    updateVbRecordUI(false);
+  }
+  function updateVbRecordUI(recording){
+    document.getElementById('btn-vb-record').classList.toggle('recording', recording);
+    document.getElementById('vb-record-label').textContent = recording ? 'Stop' : 'Record';
+  }
+  function startVbRecognitionInstance(){
+    vbRecognition = new SpeechRec();
+    vbRecognition.continuous = true;
+    vbRecognition.interimResults = true;
+    vbRecognition.lang = 'en-US';
+    var finalMap = {};
+    vbRecognition.onresult = function(e){
+      var interim = '';
+      for (var i = 0; i < e.results.length; i++){
+        if (e.results[i].isFinal) finalMap[i] = e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      var keys = Object.keys(finalMap).sort(function(a,b){ return a - b; });
+      vbSessionFinal = keys.map(function(k){ return finalMap[k]; }).join(' ');
+      document.getElementById('vb-transcript').value = (vbFinalText + vbSessionFinal + ' ' + interim).trim();
+    };
+    vbRecognition.onerror = function(e){
+      if (e.error === 'no-speech' || e.error === 'aborted') return; // let onend decide whether to restart
+      vbRecording = false;
+      document.getElementById('vb-record-status').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked.' : 'Recording stopped (' + e.error + ').';
+    };
+    vbRecognition.onend = function(){
+      if (vbSessionFinal){ vbFinalText = (vbFinalText + vbSessionFinal + ' '); vbSessionFinal = ''; }
+      if (vbRecording){
+        // Many mobile browsers end an in-progress "continuous" recognition on
+        // their own every so often; restart seamlessly so it feels continuous.
+        try { startVbRecognitionInstance(); return; } catch(e){ vbRecording = false; }
+      }
+      updateVbRecordUI(false);
+      fillVbFieldsFromTranscript();
+      document.getElementById('vb-record-status').textContent = 'Check the fields below, fix anything, then add the song.';
+    };
+    vbRecognition.start();
   }
   function startVbRecording(){
     if (!SpeechRec){
       document.getElementById('vb-record-status').textContent = 'Voice recording isn’t supported in this browser — try Chrome or Edge, or just type the fields below.';
       return;
     }
-    vbFinalText = '';
-    vbRecognition = new SpeechRec();
-    vbRecognition.continuous = true;
-    vbRecognition.interimResults = true;
-    vbRecognition.lang = 'en-US';
-    vbRecognition.onresult = function(e){
-      var interim = '';
-      for (var i = e.resultIndex; i < e.results.length; i++){
-        var chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) vbFinalText += chunk + ' ';
-        else interim += chunk;
-      }
-      document.getElementById('vb-transcript').value = (vbFinalText + interim).trim();
-    };
-    vbRecognition.onerror = function(e){
-      document.getElementById('vb-record-status').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked.' : 'Recording stopped (' + e.error + ').';
-      stopVbRecording();
-    };
-    vbRecognition.onend = function(){
-      if (vbRecording){
-        vbRecording = false;
-        document.getElementById('btn-vb-record').classList.remove('recording');
-        document.getElementById('vb-record-label').textContent = 'Record';
-        fillVbFieldsFromTranscript();
-        document.getElementById('vb-record-status').textContent = 'Check the fields below, fix anything, then add the song.';
-      }
-    };
+    vbFinalText = ''; vbSessionFinal = '';
+    document.getElementById('vb-transcript').value = '';
     try {
-      vbRecognition.start();
       vbRecording = true;
-      document.getElementById('btn-vb-record').classList.add('recording');
-      document.getElementById('vb-record-label').textContent = 'Stop';
+      startVbRecognitionInstance();
+      updateVbRecordUI(true);
       document.getElementById('vb-record-status').textContent = 'Listening… say the song, key, tempo, time, leader, BVs, category, then tap Stop.';
-      document.getElementById('vb-transcript').value = '';
     } catch(e){
+      vbRecording = false;
       document.getElementById('vb-record-status').textContent = 'Could not start the microphone.';
     }
   }
