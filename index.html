@@ -2060,6 +2060,11 @@ import { AI_WORKER_URL } from './ai-config.js';
   // ---------- team sheets ----------
   var teamSheets = [], teamSheetFilter = 'all', editingTeamSheetId = null;
   function normTitle(t){ return String(t||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  function sheetsForTitle(title){
+    var n = normTitle(title);
+    return teamSheets.filter(function(sh){ return normTitle(sh.title) === n; })
+      .sort(function(a,b){ var ai = KEYS.indexOf(a.key), bi = KEYS.indexOf(b.key); return (ai<0?99:ai) - (bi<0?99:bi); });
+  }
   function canManageSheet(sh){ return canEdit || (sh.uploadedBy && sh.uploadedBy === myId); }
   function sheetKindLabel(sh){
     if (sh.pageUrls && sh.pageUrls.length) return 'PDF · ' + sh.pageUrls.length + ' page' + (sh.pageUrls.length===1?'':'s');
@@ -2126,19 +2131,19 @@ import { AI_WORKER_URL } from './ai-config.js';
   }
   document.getElementById('btn-close-sheetview').addEventListener('click', function(){ document.getElementById('sheetview-overlay').classList.remove('active'); });
 
-  function openTeamSheetModal(sh){
+  function openTeamSheetModal(sh, prefill){
     editingTeamSheetId = sh ? sh.id : null;
     document.getElementById('teamsheet-modal-title').textContent = sh ? 'Edit team sheet' : 'Upload team sheet';
     document.getElementById('btn-delete-teamsheet').style.display = sh ? '' : 'none';
-    document.getElementById('ts-title').value = sh ? sh.title : '';
+    document.getElementById('ts-title').value = sh ? sh.title : (prefill && prefill.title) || '';
     document.getElementById('ts-key').innerHTML = '<option value="">— key —</option>' + KEYS.map(function(k){ return '<option>' + k + '</option>'; }).join('');
-    document.getElementById('ts-key').value = sh ? (sh.key||'') : '';
-    var cat = (sh && sh.category) || (teamSheetFilter === 'Worship' ? 'Worship' : 'Praise');
+    document.getElementById('ts-key').value = sh ? (sh.key||'') : (prefill && prefill.key) || '';
+    var cat = (sh && sh.category) || (prefill && prefill.category) || (teamSheetFilter === 'Worship' ? 'Worship' : 'Praise');
     document.querySelectorAll('input[name="ts-cat"]').forEach(function(r){ r.checked = r.value === cat; });
     document.getElementById('ts-file').value = '';
     document.getElementById('ts-body').value = sh && sh.body ? sh.body : '';
     document.getElementById('ts-file-note').textContent = sh ? 'Editing keeps the current file or text unless you choose a new file or change the text.' : 'Reuse the same title for another key and the sheets are grouped together.';
-    var titles = uniq(teamSheets.map(function(x){ return x.title; })).sort();
+    var titles = uniq(teamSheets.map(function(x){ return x.title; }).concat(songLibrary.map(function(x){ return x.title; }))).sort();
     document.getElementById('ts-titles').innerHTML = titles.map(function(t){ return '<option value="' + esc(t) + '">'; }).join('');
     document.getElementById('teamsheet-overlay').classList.add('active');
   }
@@ -2349,6 +2354,7 @@ import { AI_WORKER_URL } from './ai-config.js';
     var rows = lib.map(function(sg){
       var open = !!expandedLib[sg.id];
       var overrides = sg.keys ? Object.keys(sg.keys).filter(function(k){ return sg.keys[k]; }).length : 0;
+      var linkedSheets = sheetsForTitle(sg.title);
       var panel = '';
       if (open){
         panel = '<div class="lib-panel" style="flex-basis:100%;width:100%;border-top:1px solid var(--line);padding-top:12px;margin-top:2px">' +
@@ -2360,10 +2366,17 @@ import { AI_WORKER_URL } from './ai-config.js';
               (own ? '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:17px">' + esc(own) + '</b>' : '<span style="font-size:12px;color:var(--ink-soft)">' + esc(sg.key||'—') + ' (default)</span>') +
             '</div>';
           }).join('') + '</div>' : '<p class="tiny-note" style="margin:0">Nobody is on the team yet.</p>') +
+          '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">' +
+            '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">Chord sheets in Team Sheets</div>' +
+            (linkedSheets.length
+              ? '<div style="display:flex;gap:6px;flex-wrap:wrap">' + linkedSheets.map(function(sh){ return '<button class="chip" data-libsheetview="' + sh.id + '">' + esc(sh.key||'—') + '</button>'; }).join('') + '</div>'
+              : '<p class="tiny-note" style="margin:0 0 6px">No chord sheet linked yet.</p>') +
+            '<button class="btn ghost small" data-libaddsheet="' + sg.id + '" style="margin-top:8px">+ Add chord sheet</button>' +
+          '</div>' +
         '</div>';
       }
       return '<div class="sheet-row lib-song" data-libtoggle="' + sg.id + '" style="cursor:pointer"><div class="info" style="flex:1;min-width:0"><b>' + esc(sg.title) + '</b>' +
-        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.arr && (sg.arr.tempo || sg.arr.timeSig) ? ' &middot; ' + esc([sg.arr.tempo, sg.arr.timeSig].filter(Boolean).join(' ')) : '') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (overrides ? ' &middot; '+overrides+' member key'+(overrides===1?'':'s') : '') + '</span></div>' +
+        '<span>' + (last[(sg.title||'').trim().toLowerCase()] ? 'last sung '+esc(fmtSvc(last[(sg.title||'').trim().toLowerCase()])) : 'never sung') + (sg.arr && (sg.arr.tempo || sg.arr.timeSig) ? ' &middot; ' + esc([sg.arr.tempo, sg.arr.timeSig].filter(Boolean).join(' ')) : '') + (sg.ccli?' &middot; CCLI '+esc(sg.ccli):'') + (overrides ? ' &middot; '+overrides+' member key'+(overrides===1?'':'s') : '') + (linkedSheets.length ? ' &middot; &#127925; ' + linkedSheets.length + ' chord sheet' + (linkedSheets.length===1?'':'s') : '') + '</span></div>' +
         '<b style="font-family:\'Bebas Neue\',sans-serif;font-size:16px">' + esc(sg.key||'—') + '</b>' +
         (canEdit ? '<button class="btn ghost small" data-libedit="'+sg.id+'">Edit</button>' : '') +
         '<span aria-hidden="true" style="color:var(--ink-soft);font-size:13px">' + (open ? '&#9652;' : '&#9662;') + '</span>' +
@@ -2386,6 +2399,13 @@ import { AI_WORKER_URL } from './ai-config.js';
       };
     });
     el.querySelectorAll('[data-libedit]').forEach(function(b){ b.onclick = function(){ openLibSongModal(songLibrary.find(function(x){return x.id===b.dataset.libedit;})); }; });
+    el.querySelectorAll('[data-libsheetview]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); openSheetViewer(b.dataset.libsheetview); }; });
+    el.querySelectorAll('[data-libaddsheet]').forEach(function(b){ b.onclick = function(e){
+      e.stopPropagation();
+      var sg = songLibrary.find(function(x){ return x.id === b.dataset.libaddsheet; });
+      if (!sg) return;
+      openTeamSheetModal(null, { title: sg.title, category: (sg.arr && sg.arr.category) || 'Praise', key: sg.key || '' });
+    }; });
   }
   function openLibSongModal(sg){
     var isNew = !sg;
