@@ -313,7 +313,7 @@
         <h2 class="display">Practice Arrangements</h2>
         <p>The songs for the selected service &mdash; keys, tempos and instrument notes. Add a song to build that week&rsquo;s set.</p>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="btn-share-arr">Share summary</button><button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="btn-share-arr">Share summary</button><button class="btn ghost" id="btn-voice-batch" style="display:none">&#127908; Voice-add songs</button><button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button></div>
     </div>
     <div class="filterbar" id="song-filters">
       <button class="chip active" data-filter="all">All</button>
@@ -466,6 +466,38 @@
       <button class="btn gold" id="btn-save-idea">Save idea</button>
     </div>
     <div class="idea-list" id="idea-list"></div>
+  </div>
+</div>
+
+<!-- Voice-add a whole week's set list -->
+<div class="overlay" id="voice-batch-overlay">
+  <div class="modal">
+    <h3>Voice-add songs</h3>
+    <p class="hint">Record one song at a time, in this order: <b>song title, key, tempo, time signature, leader, BVs, category</b>. For example: &ldquo;Way Maker, key G, tempo 72, time 4 4, leader Sarah, BVs from the chorus, category praise.&rdquo; Check the fields after each recording, then add it and move to the next song.</p>
+    <div class="record-row">
+      <button class="btn-record" id="btn-vb-record"><span class="dot"></span><span id="vb-record-label">Record</span></button>
+      <span class="record-status" id="vb-record-status"></span>
+    </div>
+    <div class="field"><label>Heard</label><textarea id="vb-transcript" style="min-height:60px" placeholder="What you said appears here — you can edit it directly too."></textarea></div>
+    <button class="btn ghost small" id="btn-vb-parse" style="margin-bottom:10px">Fill fields from this text</button>
+    <div class="field-row">
+      <div class="field"><label>Title</label><input id="vb-title" placeholder="Song title"></div>
+      <div class="field"><label>Category</label><select id="vb-category"><option>Praise</option><option>Worship</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Key</label><input id="vb-key" placeholder="G"></div>
+      <div class="field"><label>Tempo</label><input id="vb-tempo" placeholder="72 BPM"></div>
+      <div class="field"><label>Time</label><input id="vb-time" placeholder="4/4"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Leader</label><input id="vb-leader" placeholder="All / a name"></div>
+      <div class="field"><label>BVs</label><input id="vb-bvs" placeholder="Chorus onwards"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-vb-close">Done</button>
+      <button class="btn gold" id="btn-vb-add">Add song &amp; record next</button>
+    </div>
+    <div id="vb-added-list" style="margin-top:14px;display:flex;flex-direction:column;gap:6px"></div>
   </div>
 </div>
 
@@ -1285,6 +1317,163 @@ import { AI_WORKER_URL } from './ai-config.js';
       document.getElementById('idea-text').value = '';
       toast('Idea saved.');
     } catch(err){ toast('Could not save idea.'); }
+  });
+
+  // ---------- voice-add a whole week's songs ----------
+  var voiceBatchOverlay = document.getElementById('voice-batch-overlay');
+  var vbRecognition = null, vbRecording = false, vbFinalText = '';
+  var vbAddedCount = 0;
+
+  function parseVoiceSong(raw){
+    var text = (raw||'').trim();
+    var labelDefs = [
+      { field:'category', res:[/\bcategory\b\s*[:\-]?\s*/i] },
+      { field:'key', res:[/\bkey\b\s*[:\-]?\s*(?:of\s+)?/i] },
+      { field:'tempo', res:[/\btempo\b\s*[:\-]?\s*/i, /\bbpm\b\s*[:\-]?\s*/i] },
+      { field:'timeSig', res:[/\btime\s*signature\b\s*[:\-]?\s*/i, /\btime\b\s*[:\-]?\s*/i] },
+      { field:'leaderName', res:[/\bled\s*by\b\s*[:\-]?\s*/i, /\bleader\b\s*[:\-]?\s*/i] },
+      { field:'bvs', res:[/\bbackground\s*vocals\b\s*[:\-]?\s*/i, /\bbacking\s*vocals\b\s*[:\-]?\s*/i, /\bbvs\b\s*[:\-]?\s*/i] }
+    ];
+    var found = [];
+    labelDefs.forEach(function(l){
+      var best = null;
+      l.res.forEach(function(re){
+        var m = re.exec(text);
+        if (m && (best===null || m.index < best.index)) best = { index: m.index, end: m.index + m[0].length };
+      });
+      if (best) found.push({ field: l.field, start: best.index, end: best.end });
+    });
+    found.sort(function(a,b){ return a.start - b.start; });
+    var out = { title:'', category:'', key:'', tempo:'', timeSig:'', leaderName:'', bvs:'' };
+    out.title = (found.length ? text.slice(0, found[0].start) : text).trim().replace(/[,.]+$/,'').trim();
+    found.forEach(function(f, i){
+      var end = (i+1 < found.length) ? found[i+1].start : text.length;
+      out[f.field] = text.slice(f.end, end).trim().replace(/^[,.\-:]+|[,.\-:]+$/g,'').trim();
+    });
+    if (out.category){
+      out.category = /worship/i.test(out.category) ? 'Worship' : 'Praise';
+    }
+    if (out.tempo){
+      var tm = out.tempo.match(/\d+/);
+      out.tempo = tm ? tm[0] + ' BPM' : out.tempo;
+    }
+    if (out.timeSig){
+      var m2 = out.timeSig.replace(/\s+/g,' ').match(/(\d)\s*[\/\- ]\s*(\d)/);
+      if (m2) out.timeSig = m2[1] + '/' + m2[2];
+    }
+    if (out.key){
+      var km = out.key.match(/[A-Ga-g][#b]?/);
+      if (km) out.key = km[0].charAt(0).toUpperCase() + km[0].slice(1);
+    }
+    return out;
+  }
+  function fillVbFieldsFromTranscript(){
+    var p = parseVoiceSong(document.getElementById('vb-transcript').value);
+    document.getElementById('vb-title').value = p.title;
+    document.getElementById('vb-category').value = p.category || 'Praise';
+    document.getElementById('vb-key').value = p.key;
+    document.getElementById('vb-tempo').value = p.tempo;
+    document.getElementById('vb-time').value = p.timeSig;
+    document.getElementById('vb-leader').value = p.leaderName;
+    document.getElementById('vb-bvs').value = p.bvs;
+  }
+  function stopVbRecording(){
+    if (vbRecognition){ try { vbRecognition.stop(); } catch(e){} }
+    vbRecording = false;
+    document.getElementById('btn-vb-record').classList.remove('recording');
+    document.getElementById('vb-record-label').textContent = 'Record';
+  }
+  function startVbRecording(){
+    if (!SpeechRec){
+      document.getElementById('vb-record-status').textContent = 'Voice recording isn’t supported in this browser — try Chrome or Edge, or just type the fields below.';
+      return;
+    }
+    vbFinalText = '';
+    vbRecognition = new SpeechRec();
+    vbRecognition.continuous = true;
+    vbRecognition.interimResults = true;
+    vbRecognition.lang = 'en-US';
+    vbRecognition.onresult = function(e){
+      var interim = '';
+      for (var i = e.resultIndex; i < e.results.length; i++){
+        var chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) vbFinalText += chunk + ' ';
+        else interim += chunk;
+      }
+      document.getElementById('vb-transcript').value = (vbFinalText + interim).trim();
+    };
+    vbRecognition.onerror = function(e){
+      document.getElementById('vb-record-status').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked.' : 'Recording stopped (' + e.error + ').';
+      stopVbRecording();
+    };
+    vbRecognition.onend = function(){
+      if (vbRecording){
+        vbRecording = false;
+        document.getElementById('btn-vb-record').classList.remove('recording');
+        document.getElementById('vb-record-label').textContent = 'Record';
+        fillVbFieldsFromTranscript();
+        document.getElementById('vb-record-status').textContent = 'Check the fields below, fix anything, then add the song.';
+      }
+    };
+    try {
+      vbRecognition.start();
+      vbRecording = true;
+      document.getElementById('btn-vb-record').classList.add('recording');
+      document.getElementById('vb-record-label').textContent = 'Stop';
+      document.getElementById('vb-record-status').textContent = 'Listening… say the song, key, tempo, time, leader, BVs, category, then tap Stop.';
+      document.getElementById('vb-transcript').value = '';
+    } catch(e){
+      document.getElementById('vb-record-status').textContent = 'Could not start the microphone.';
+    }
+  }
+  document.getElementById('btn-vb-record').addEventListener('click', function(){ vbRecording ? stopVbRecording() : startVbRecording(); });
+  document.getElementById('btn-vb-parse').addEventListener('click', fillVbFieldsFromTranscript);
+  function clearVbFields(){
+    ['vb-title','vb-key','vb-tempo','vb-time','vb-leader','vb-bvs'].forEach(function(id){ document.getElementById(id).value = ''; });
+    document.getElementById('vb-category').value = 'Praise';
+    document.getElementById('vb-transcript').value = '';
+    document.getElementById('vb-record-status').textContent = '';
+  }
+  function openVoiceBatchModal(){
+    if (!activeServiceId){ toast('Pick or add a service first.'); return; }
+    vbAddedCount = 0;
+    document.getElementById('vb-added-list').innerHTML = '';
+    clearVbFields();
+    voiceBatchOverlay.classList.add('active');
+  }
+  document.getElementById('btn-voice-batch').addEventListener('click', openVoiceBatchModal);
+  document.getElementById('btn-vb-close').addEventListener('click', function(){ stopVbRecording(); voiceBatchOverlay.classList.remove('active'); });
+  document.getElementById('btn-vb-add').addEventListener('click', async function(){
+    if (!activeServiceId){ toast('Pick or add a service first.'); return; }
+    stopVbRecording();
+    var title = document.getElementById('vb-title').value.trim();
+    if (!title){ toast('Add a song title first.'); return; }
+    var inService = arrSongs(activeServiceId);
+    var data = {
+      title: title,
+      category: document.getElementById('vb-category').value,
+      key: document.getElementById('vb-key').value.trim(),
+      tempo: document.getElementById('vb-tempo').value.trim(),
+      timeSig: document.getElementById('vb-time').value.trim(),
+      leaderName: document.getElementById('vb-leader').value.trim(),
+      bvs: document.getElementById('vb-bvs').value.trim(),
+      keys: '', pads: '', acoustic1: '', electric1: '', electric2: '', lyricsChords: '',
+      serviceId: activeServiceId,
+      order: inService.reduce(function(m,x){ return Math.max(m, x.order||0); }, 0) + 1
+    };
+    try {
+      if (!db){ toast('Not connected.'); return; }
+      await db.collection('songs').add(data);
+      vbAddedCount++;
+      var list = document.getElementById('vb-added-list');
+      var row = document.createElement('div');
+      row.className = 'tiny-note';
+      row.style.margin = '0';
+      row.textContent = '✓ Added: ' + title + (data.key ? ' (' + data.key + ')' : '');
+      list.appendChild(row);
+      toast('Added. Record the next song.');
+      clearVbFields();
+    } catch(err){ toast('Could not save that song.'); }
   });
 
   // ---------- shared name resolution ----------
@@ -2677,7 +2866,7 @@ import { AI_WORKER_URL } from './ai-config.js';
       } catch(e){}
     }
 
-    if (canEdit) document.getElementById('btn-add-song').style.display = '';
+    if (canEdit){ document.getElementById('btn-add-song').style.display = ''; document.getElementById('btn-voice-batch').style.display = ''; }
     document.getElementById('fb-hint').textContent = canEdit ? 'Pick the Sunday and see everyone\u2019s feedback.' : 'Pick the Sunday and share how it went. Only you and the team leads can see it.';
     document.getElementById('sg-hint').textContent = canEdit ? 'Every suggestion from the team, for you to approve or pass.' : 'Send a song for the team lead to consider. Only you and the team leads can see your suggestions.';
 
