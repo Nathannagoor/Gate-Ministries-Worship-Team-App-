@@ -245,6 +245,10 @@
 
   .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--navy-900); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 60; }
   .toast.show { opacity: 1; }
+  .toast-undo { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--navy-900); color: #fff; padding: 10px 10px 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 61; display: flex; align-items: center; gap: 14px; }
+  .toast-undo.show { opacity: 1; pointer-events: auto; }
+  .toast-undo button { background: transparent; border: 1.5px solid rgba(255,255,255,.55); color: #fff; padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .toast-undo button:hover { background: rgba(255,255,255,.15); }
 
   .readonly-note { font-size: 12px; color: var(--gold-ink); background: #e9ebf7; border: 1px solid #c7ccec; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px; }
 
@@ -313,7 +317,7 @@
         <h2 class="display">Practice Arrangements</h2>
         <p>The songs for the selected service &mdash; keys, tempos and instrument notes. Add a song to build that week&rsquo;s set.</p>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="btn-share-arr">Share summary</button><button class="btn ghost" id="btn-voice-batch" style="display:none">&#127908; Voice-add songs</button><button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="btn-share-arr">Share summary</button><button class="btn ghost" id="btn-voice-batch" style="display:none">&#127908; Voice-add songs</button><button class="btn danger" id="btn-delete-arrangement" style="display:none">Delete arrangement</button><button class="btn gold" id="btn-add-song" style="display:none">+ Add song</button></div>
     </div>
     <div class="filterbar" id="song-filters">
       <button class="chip active" data-filter="all">All</button>
@@ -705,6 +709,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="toast-undo" id="toast-undo"><span id="toast-undo-msg"></span><button id="toast-undo-btn">Undo</button></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
@@ -934,6 +939,22 @@ import { AI_WORKER_URL } from './ai-config.js';
     clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200);
   }
 
+  var undoTimer = null, undoHandler = null;
+  function toastUndo(msg, onUndo, duration){
+    var el = document.getElementById('toast-undo');
+    document.getElementById('toast-undo-msg').textContent = msg;
+    undoHandler = onUndo;
+    el.classList.add('show');
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(function(){ el.classList.remove('show'); undoHandler = null; }, duration || 8000);
+  }
+  document.getElementById('toast-undo-btn').addEventListener('click', function(){
+    document.getElementById('toast-undo').classList.remove('show');
+    clearTimeout(undoTimer);
+    var h = undoHandler; undoHandler = null;
+    if (h) h();
+  });
+
   // ---------- tabs ----------
   document.querySelectorAll('.tab-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -1159,6 +1180,27 @@ import { AI_WORKER_URL } from './ai-config.js';
   document.getElementById('f-library').addEventListener('change', function(){ applyLibrarySelection(false); });
   document.getElementById('f-leader').addEventListener('input', function(){ applyLibrarySelection(true); });
   document.getElementById('btn-add-song').addEventListener('click', function(){ openSongModal(null); });
+  var lastDeletedArrangement = null;
+  document.getElementById('btn-delete-arrangement').addEventListener('click', async function(){
+    if (!activeServiceId){ toast('Pick a service first.'); return; }
+    var list = arrSongs(activeServiceId);
+    if (!list.length){ toast('This arrangement is already empty.'); return; }
+    var n = list.length;
+    if (!confirm('Delete all ' + n + ' song' + (n===1?'':'s') + ' in this week’s arrangement? You can undo for a few seconds right after.')) return;
+    var snapshot = list.map(function(s){ var copy = Object.assign({}, s); delete copy.id; return copy; });
+    try {
+      await Promise.all(list.map(function(s){ return db.collection('songs').doc(s.id).delete(); }));
+      lastDeletedArrangement = { serviceId: activeServiceId, songs: snapshot };
+      toastUndo('Deleted ' + n + ' song' + (n===1?'':'s') + '.', async function(){
+        var restore = lastDeletedArrangement; lastDeletedArrangement = null;
+        if (!restore) return;
+        try {
+          await Promise.all(restore.songs.map(function(s){ return db.collection('songs').add(s); }));
+          toast('Restored.');
+        } catch(e){ toast('Could not restore — sorry.'); }
+      }, 8000);
+    } catch(err){ toast('Could not delete the arrangement.'); }
+  });
   document.getElementById('btn-cancel-song').addEventListener('click', function(){ songOverlay.classList.remove('active'); });
   document.getElementById('btn-save-song').addEventListener('click', async function(){
     var existing = editingSongId ? songs.find(function(s){ return s.id === editingSongId; }) : null;
@@ -2886,7 +2928,7 @@ import { AI_WORKER_URL } from './ai-config.js';
       } catch(e){}
     }
 
-    if (canEdit){ document.getElementById('btn-add-song').style.display = ''; document.getElementById('btn-voice-batch').style.display = ''; }
+    if (canEdit){ document.getElementById('btn-add-song').style.display = ''; document.getElementById('btn-voice-batch').style.display = ''; document.getElementById('btn-delete-arrangement').style.display = ''; }
     document.getElementById('fb-hint').textContent = canEdit ? 'Pick the Sunday and see everyone\u2019s feedback.' : 'Pick the Sunday and share how it went. Only you and the team leads can see it.';
     document.getElementById('sg-hint').textContent = canEdit ? 'Every suggestion from the team, for you to approve or pass.' : 'Send a song for the team lead to consider. Only you and the team leads can see your suggestions.';
 
