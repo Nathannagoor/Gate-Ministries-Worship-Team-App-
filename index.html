@@ -1271,6 +1271,23 @@ import { AI_WORKER_URL } from './ai-config.js';
   }
   document.getElementById('f-library').addEventListener('change', function(){ applyLibrarySelection(false); });
   document.getElementById('f-leader').addEventListener('input', function(){ applyLibrarySelection(true); });
+  document.getElementById('f-title').addEventListener('blur', function(){
+    if (editingSongId) return; // only auto-match when adding a new song, not editing one already on the arrangement
+    var libSelect = document.getElementById('f-library');
+    var typed = normTitle(document.getElementById('f-title').value);
+    if (!typed){ return; }
+    var match = songLibrary.find(function(l){ return normTitle(l.title) === typed; });
+    if (match){
+      if (libSelect.value !== match.id){
+        libSelect.value = match.id;
+        applyLibrarySelection(false);
+        document.getElementById('f-savelib').checked = false;
+        toast('Matched "' + match.title + '" from the Song Library — details filled in.');
+      }
+    } else if (libSelect.value){
+      libSelect.value = '';
+    }
+  });
   document.getElementById('btn-add-song').addEventListener('click', function(){ openSongModal(null); });
   var lastDeletedArrangement = null;
   document.getElementById('btn-delete-arrangement').addEventListener('click', async function(){
