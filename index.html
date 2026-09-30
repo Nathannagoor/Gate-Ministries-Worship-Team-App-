@@ -436,10 +436,16 @@
     </div>
     <div class="field"><label>Keys / Piano</label><input id="f-keys" placeholder="Piano / EP"></div>
     <div class="field"><label>Pads</label><input id="f-pads" placeholder="Pads &amp; strings"></div>
-    <div class="field"><label>Acoustic guitar</label><input id="f-acoustic1" placeholder="Standard"></div>
+    <div class="field"><label>Acoustic guitar 1</label><input id="f-acoustic1" placeholder="Standard"></div>
+    <div class="field"><label>Acoustic guitar 2</label><input id="f-acoustic2" placeholder="Capo 2nd or 4th"></div>
     <div class="field"><label>Electric guitar 1</label><input id="f-electric1" placeholder="Clean, light reverb"></div>
     <div class="field"><label>Electric guitar 2</label><input id="f-electric2" placeholder="Clean, light reverb"></div>
+    <div class="field"><label>Bass</label><input id="f-bass" placeholder="Play the bass lines"></div>
+    <div class="field"><label>Transitions</label><input id="f-transitions" placeholder="e.g. straight into the next song"></div>
     <div class="field"><label>Lyrics &amp; chords</label><textarea id="f-lyrics" style="min-height:140px;font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px" placeholder="Paste the lyrics with chords above the words, e.g.&#10;G          D&#10;Amazing grace how sweet the sound"></textarea></div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px"><input type="checkbox" id="f-track" style="width:auto"> Backing track available</label>
+    </div>
     <div class="field" id="f-savelib-field">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px"><input type="checkbox" id="f-savelib" style="width:auto" checked> Also save to the Song Library (so next time it fills in automatically)</label>
     </div>
@@ -502,6 +508,12 @@
       <button class="btn gold" id="btn-vb-add">Add song &amp; record next</button>
     </div>
     <div id="vb-added-list" style="margin-top:14px;display:flex;flex-direction:column;gap:6px"></div>
+    <details style="margin-top:18px;border-top:1px solid var(--line);padding-top:12px">
+      <summary style="cursor:pointer;font-weight:700;font-size:13px">Bulk-add a whole set list at once</summary>
+      <p class="hint">Paste a list of songs as JSON (each with title, key, tempo, timeSig, leaderName, bvs, category, and any instrument fields) and add them all to the selected service in one go.</p>
+      <textarea id="vb-bulk-json" style="min-height:160px;font-family:'SFMono-Regular',Consolas,monospace;font-size:11.5px"></textarea>
+      <button class="btn gold small" id="btn-vb-bulk-import" style="margin-top:8px">Import this list</button>
+    </details>
   </div>
 </div>
 
@@ -623,9 +635,12 @@
     <div class="field"><label>BVs</label><input id="lb-bvs" placeholder="Chorus onwards"></div>
     <div class="field"><label>Keys / Piano</label><input id="lb-inst-keys" placeholder="Piano / EP"></div>
     <div class="field"><label>Pads</label><input id="lb-pads" placeholder="Pads &amp; strings"></div>
-    <div class="field"><label>Acoustic guitar</label><input id="lb-acoustic1" placeholder="Standard"></div>
+    <div class="field"><label>Acoustic guitar 1</label><input id="lb-acoustic1" placeholder="Standard"></div>
+    <div class="field"><label>Acoustic guitar 2</label><input id="lb-acoustic2" placeholder="Capo 2nd or 4th"></div>
     <div class="field"><label>Electric guitar 1</label><input id="lb-electric1" placeholder="Clean, light reverb"></div>
     <div class="field"><label>Electric guitar 2</label><input id="lb-electric2" placeholder="Clean, light reverb"></div>
+    <div class="field"><label>Bass</label><input id="lb-bass" placeholder="Play the bass lines"></div>
+    <div class="field"><label>Transitions</label><input id="lb-transitions" placeholder="e.g. straight into the next song"></div>
     <div class="field">
       <label>Key for each member (blank = default key)</label>
       <div id="lb-leader-keys" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -1100,9 +1115,12 @@ import { AI_WORKER_URL } from './ai-config.js';
         '</div>' +
         '<div class="leader-row' + (!lc ? ' all' : '') + '"' + leaderStyle + '>' + leaderIcon + ' ' + leaderDot + 'Leader: ' + esc(s.leaderName||'&mdash;') + '</div>' +
         (s.bvs ? '<div class="bv-row">&#128100; BVs: ' + esc(s.bvs) + '</div>' : '') +
+        '<div class="bv-row" style="color:' + (s.trackAvailable ? 'var(--ok, #1a8a4a)' : 'var(--no)') + ';font-weight:700">' + (s.trackAvailable ? '&#127925; Track available' : '&#9888; No track available') + '</div>' +
         '<div class="song-instruments">' +
           instLine('Keys', s.keys) + instLine('Pads', s.pads) + instLine('Acoustic', s.acoustic1) +
+          instLine('Acoustic 2', s.acoustic2) +
           instLine('Electric 1', s.electric1) + instLine('Electric 2', s.electric2) +
+          instLine('Bass', s.bass) + instLine('Transitions', s.transitions) +
         '</div>' +
         '<div class="song-card-actions">' +
           (hasLyricsOrSheet ? '<button class="btn ghost small" data-lyricstoggle="' + s.id + '">' + (lyricsOpen ? 'Hide lyrics &amp; chords &#9652;' : 'Lyrics &amp; chords &#9662;') + '</button>' : '') +
@@ -1212,7 +1230,7 @@ import { AI_WORKER_URL } from './ai-config.js';
     var u = teamUsers.find(function(x){ return (x.name||'').trim().toLowerCase() === n; });
     return (u && lib.keys && lib.keys[u.id]) || '';
   }
-  var ARR_FIELDS = [['f-category','category'],['f-tempo','tempo'],['f-time','timeSig'],['f-bvs','bvs'],['f-keys','keys'],['f-pads','pads'],['f-acoustic1','acoustic1'],['f-electric1','electric1'],['f-electric2','electric2'],['f-lyrics','lyricsChords']];
+  var ARR_FIELDS = [['f-category','category'],['f-tempo','tempo'],['f-time','timeSig'],['f-bvs','bvs'],['f-keys','keys'],['f-pads','pads'],['f-acoustic1','acoustic1'],['f-acoustic2','acoustic2'],['f-electric1','electric1'],['f-electric2','electric2'],['f-bass','bass'],['f-transitions','transitions'],['f-lyrics','lyricsChords']];
   function readArrFromForm(){
     var o = {};
     ARR_FIELDS.forEach(function(p){ o[p[1]] = document.getElementById(p[0]).value.trim(); });
@@ -1237,8 +1255,11 @@ import { AI_WORKER_URL } from './ai-config.js';
     f('f-title', song && song.title); f('f-key', song && song.key); f('f-tempo', song && song.tempo);
     f('f-time', song && song.timeSig); f('f-leader', song && song.leaderName); f('f-bvs', song && song.bvs);
     f('f-keys', song && song.keys); f('f-pads', song && song.pads); f('f-acoustic1', song && song.acoustic1);
+    f('f-acoustic2', song && song.acoustic2);
     f('f-electric1', song && song.electric1); f('f-electric2', song && song.electric2);
+    f('f-bass', song && song.bass); f('f-transitions', song && song.transitions);
     f('f-lyrics', song && song.lyricsChords);
+    document.getElementById('f-track').checked = !!(song && song.trackAvailable);
     document.getElementById('f-category').value = (song && song.category) || 'Praise';
     var libField = document.getElementById('f-library-field');
     var libs = songLibrary.slice().sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
@@ -1289,9 +1310,13 @@ import { AI_WORKER_URL } from './ai-config.js';
       keys: document.getElementById('f-keys').value.trim(),
       pads: document.getElementById('f-pads').value.trim(),
       acoustic1: document.getElementById('f-acoustic1').value.trim(),
+      acoustic2: document.getElementById('f-acoustic2').value.trim(),
       electric1: document.getElementById('f-electric1').value.trim(),
       electric2: document.getElementById('f-electric2').value.trim(),
+      bass: document.getElementById('f-bass').value.trim(),
+      transitions: document.getElementById('f-transitions').value.trim(),
       lyricsChords: document.getElementById('f-lyrics').value.trim(),
+      trackAvailable: document.getElementById('f-track').checked,
       serviceId: serviceId,
       order: existing ? (existing.order || inService.length) : (inService.reduce(function(m,x){ return Math.max(m, x.order||0); }, 0) + 1)
     };
@@ -1576,11 +1601,26 @@ import { AI_WORKER_URL } from './ai-config.js';
     document.getElementById('vb-transcript').value = '';
     document.getElementById('vb-record-status').textContent = '';
   }
+  var vbBulkPrefilled = false;
+  var OCT1_2026_SETLIST = [
+    { title: 'The Lord Will Provide', category: 'Praise', key: 'A/B', tempo: '68 BPM', timeSig: '6/8', leaderName: 'All', bvs: 'All in from start', keys: 'Piano', pads: 'Pads and Strings', acoustic1: 'Capo 2nd or 4th', electric1: 'light overdrive, light reverb', bass: 'Play the bass lines', trackAvailable: false },
+    { title: 'Jehovah', category: 'Praise', key: 'B', tempo: '100 BPM', timeSig: '4/4', leaderName: 'Nathan', bvs: 'Chorus', keys: 'Piano — low octave, lay chords', pads: 'Pads and Strings', acoustic1: 'Capo 4th', electric1: 'light overdrive, light reverb', bass: '', trackAvailable: true },
+    { title: 'New Thing Coming', category: 'Praise', key: 'E', tempo: '91 BPM', timeSig: '4/4', leaderName: 'Kendal', bvs: 'Chorus', keys: 'Piano', pads: 'Pads and Organ', acoustic1: 'Standard', electric1: 'light overdrive, light reverb', bass: 'Play the bass lines', trackAvailable: true },
+    { title: 'The Word', category: 'Praise', key: 'E', tempo: '80 BPM', timeSig: '4/4', leaderName: 'All', bvs: 'All in from start', keys: 'Piano', pads: 'Pads and Strings', acoustic1: 'Standard', electric1: 'clean, modulated reverb', bass: 'Play the bass lines', trackAvailable: false },
+    { title: 'King of Glory', category: 'Praise', key: 'G', tempo: '80 BPM', timeSig: '6/8', leaderName: 'Letitia', bvs: 'Chorus', keys: 'Piano', pads: 'Pads and Strings', acoustic1: 'standard', electric1: 'light overdrive, modulated reverb', bass: 'Play the bass lines', trackAvailable: false },
+    { title: 'Gratitude', category: 'Praise', key: 'G', tempo: '78 BPM', timeSig: '6/8', leaderName: 'Bruce', bvs: 'Chorus', keys: 'Piano', pads: 'Pads and Strings', acoustic1: 'standard', electric1: 'light overdrive, modulated reverb', bass: 'Play the bass lines', trackAvailable: false },
+    { title: 'Great Is', category: 'Praise', key: 'G', tempo: '90 BPM', timeSig: '6/8', leaderName: 'TBC', bvs: 'TBC', keys: 'Piano', pads: 'Pads and Strings', acoustic1: 'standard', electric1: 'Clean, light reverb, chorus', bass: 'Play the bass lines', trackAvailable: false },
+    { title: 'Let My Life Be Worship', category: 'Praise', key: 'G', tempo: '78 BPM', timeSig: '6/8', leaderName: 'All', bvs: 'All in from start', keys: 'Piano', pads: 'Pads and Strings', acoustic1: 'standard', electric1: 'Clean, light reverb', bass: 'Play the bass lines', trackAvailable: false }
+  ];
   function openVoiceBatchModal(){
     if (!activeServiceId){ toast('Pick or add a service first.'); return; }
     vbAddedCount = 0;
     document.getElementById('vb-added-list').innerHTML = '';
     clearVbFields();
+    if (!vbBulkPrefilled){
+      document.getElementById('vb-bulk-json').value = JSON.stringify(OCT1_2026_SETLIST, null, 2);
+      vbBulkPrefilled = true;
+    }
     voiceBatchOverlay.classList.add('active');
   }
   document.getElementById('btn-voice-batch').addEventListener('click', openVoiceBatchModal);
@@ -1599,7 +1639,7 @@ import { AI_WORKER_URL } from './ai-config.js';
       timeSig: document.getElementById('vb-time').value.trim(),
       leaderName: document.getElementById('vb-leader').value.trim(),
       bvs: document.getElementById('vb-bvs').value.trim(),
-      keys: '', pads: '', acoustic1: '', electric1: '', electric2: '', lyricsChords: '',
+      keys: '', pads: '', acoustic1: '', acoustic2: '', electric1: '', electric2: '', bass: '', transitions: '', lyricsChords: '', trackAvailable: false,
       serviceId: activeServiceId,
       order: inService.reduce(function(m,x){ return Math.max(m, x.order||0); }, 0) + 1
     };
@@ -1616,6 +1656,40 @@ import { AI_WORKER_URL } from './ai-config.js';
       toast('Added. Record the next song.');
       clearVbFields();
     } catch(err){ toast('Could not save that song.'); }
+  });
+  document.getElementById('btn-vb-bulk-import').addEventListener('click', async function(){
+    if (!activeServiceId){ toast('Pick or add a service first.'); return; }
+    var raw = document.getElementById('vb-bulk-json').value.trim();
+    if (!raw){ toast('Paste a list of songs first.'); return; }
+    var list;
+    try { list = JSON.parse(raw); if (!Array.isArray(list)) throw new Error('not an array'); }
+    catch(e){ toast('That doesn’t look like valid JSON — check for a missing comma or bracket.'); return; }
+    if (!db){ toast('Not connected.'); return; }
+    var inService = arrSongs(activeServiceId);
+    var nextOrder = inService.reduce(function(m,x){ return Math.max(m, x.order||0); }, 0) + 1;
+    var added = 0, failed = 0;
+    var addedListEl = document.getElementById('vb-added-list');
+    for (var i = 0; i < list.length; i++){
+      var s = list[i] || {};
+      if (!s.title) continue;
+      var data = {
+        title: s.title, category: s.category || 'Praise', key: s.key || '', tempo: s.tempo || '', timeSig: s.timeSig || '',
+        leaderName: s.leaderName || '', bvs: s.bvs || '', keys: s.keys || '', pads: s.pads || '',
+        acoustic1: s.acoustic1 || '', acoustic2: s.acoustic2 || '', electric1: s.electric1 || '', electric2: s.electric2 || '',
+        bass: s.bass || '', transitions: s.transitions || '', lyricsChords: s.lyricsChords || '', trackAvailable: !!s.trackAvailable,
+        serviceId: activeServiceId, order: nextOrder++
+      };
+      try {
+        await db.collection('songs').add(data);
+        added++;
+        var row = document.createElement('div');
+        row.className = 'tiny-note'; row.style.margin = '0';
+        row.textContent = '✓ Added: ' + data.title + (data.key ? ' (' + data.key + ')' : '');
+        addedListEl.appendChild(row);
+      } catch(e){ failed++; }
+    }
+    toast('Added ' + added + ' song' + (added===1?'':'s') + (failed ? ', ' + failed + ' failed' : '') + '.');
+    if (added) document.getElementById('vb-bulk-json').value = '';
   });
 
   // ---------- shared name resolution ----------
@@ -2527,7 +2601,7 @@ import { AI_WORKER_URL } from './ai-config.js';
       var k = (x.title||'').trim().toLowerCase();
       if (!k || have[k]) return;
       have[k] = true;
-      toAdd.push({ title: x.title, key: x.key || '', ccli: '', keys: {}, arr: { category: x.category || 'Praise', tempo: x.tempo || '', timeSig: x.timeSig || '', bvs: x.bvs || '', keys: x.keys || '', pads: x.pads || '', acoustic1: x.acoustic1 || '', electric1: x.electric1 || '', electric2: x.electric2 || '', lyricsChords: x.lyricsChords || '' } });
+      toAdd.push({ title: x.title, key: x.key || '', ccli: '', keys: {}, arr: { category: x.category || 'Praise', tempo: x.tempo || '', timeSig: x.timeSig || '', bvs: x.bvs || '', keys: x.keys || '', pads: x.pads || '', acoustic1: x.acoustic1 || '', acoustic2: x.acoustic2 || '', electric1: x.electric1 || '', electric2: x.electric2 || '', bass: x.bass || '', transitions: x.transitions || '', lyricsChords: x.lyricsChords || '' } });
     });
     if (!toAdd.length){ toast('Everything in Arrangements is already in the library.'); return; }
     try {
@@ -2618,8 +2692,11 @@ import { AI_WORKER_URL } from './ai-config.js';
     document.getElementById('lb-inst-keys').value = arr.keys || '';
     document.getElementById('lb-pads').value = arr.pads || '';
     document.getElementById('lb-acoustic1').value = arr.acoustic1 || '';
+    document.getElementById('lb-acoustic2').value = arr.acoustic2 || '';
     document.getElementById('lb-electric1').value = arr.electric1 || '';
     document.getElementById('lb-electric2').value = arr.electric2 || '';
+    document.getElementById('lb-bass').value = arr.bass || '';
+    document.getElementById('lb-transitions').value = arr.transitions || '';
     var leaders = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
     var wrap = document.getElementById('lb-leader-keys');
     if (leaders.length){
@@ -2640,7 +2717,9 @@ import { AI_WORKER_URL } from './ai-config.js';
     var data = { title: title, key: document.getElementById('lb-key').value.trim(), ccli: document.getElementById('lb-ccli').value.trim(), keys: keys,
       arr: { category: document.getElementById('lb-category').value, tempo: document.getElementById('lb-tempo').value.trim(), timeSig: document.getElementById('lb-time').value.trim(), bvs: document.getElementById('lb-bvs').value.trim(),
              keys: document.getElementById('lb-inst-keys').value.trim(), pads: document.getElementById('lb-pads').value.trim(), acoustic1: document.getElementById('lb-acoustic1').value.trim(),
-             electric1: document.getElementById('lb-electric1').value.trim(), electric2: document.getElementById('lb-electric2').value.trim() } };
+             acoustic2: document.getElementById('lb-acoustic2').value.trim(),
+             electric1: document.getElementById('lb-electric1').value.trim(), electric2: document.getElementById('lb-electric2').value.trim(),
+             bass: document.getElementById('lb-bass').value.trim(), transitions: document.getElementById('lb-transitions').value.trim() } };
     try {
       if (editingLibSongId) await db.collection('songLibrary').doc(editingLibSongId).set(data);
       else await db.collection('songLibrary').add(data);
