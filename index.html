@@ -2299,6 +2299,18 @@ import { AI_WORKER_URL } from './ai-config.js';
       .sort(function(a,b){ var ai = KEYS.indexOf(a.key), bi = KEYS.indexOf(b.key); return (ai<0?99:ai) - (bi<0?99:bi); });
   }
   function canManageSheet(sh){ return canEdit || (sh.uploadedBy && sh.uploadedBy === myId); }
+  async function deleteSheetWithUndo(sh){
+    if (!sh) return;
+    if (!confirm('Delete the ' + (sh.key||'—') + ' chord sheet for "' + sh.title + '"?')) return;
+    var copy = Object.assign({}, sh); delete copy.id;
+    try {
+      await db.collection('teamSheets').doc(sh.id).delete();
+      toastUndo('Deleted "' + sh.title + '" (' + (sh.key||'—') + ').', async function(){
+        try { await db.collection('teamSheets').add(copy); toast('Restored.'); }
+        catch(e){ toast('Could not restore — sorry.'); }
+      }, 8000);
+    } catch(err){ toast('Could not delete that sheet.'); }
+  }
   function sheetKindLabel(sh){
     if (sh.pageUrls && sh.pageUrls.length) return 'PDF · ' + sh.pageUrls.length + ' page' + (sh.pageUrls.length===1?'':'s');
     if (sh.body) return 'Text';
@@ -2327,6 +2339,7 @@ import { AI_WORKER_URL } from './ai-config.js';
             '<div style="flex:1;min-width:0;font-size:12.5px;color:var(--ink-soft)">' + esc(sheetKindLabel(sh)) + '</div>' +
             '<button class="btn small" data-tsview="' + sh.id + '">View</button>' +
             (canManageSheet(sh) ? '<button class="btn ghost small" data-tsedit="' + sh.id + '">Edit</button>' : '') +
+            (canManageSheet(sh) ? '<button class="btn danger small" data-tsdelete="' + sh.id + '">Delete</button>' : '') +
           '</div>';
         }).join('') +
       '</div>';
@@ -2340,6 +2353,7 @@ import { AI_WORKER_URL } from './ai-config.js';
     el.querySelectorAll('[data-tsfilter]').forEach(function(b){ b.onclick = function(){ teamSheetFilter = b.dataset.tsfilter; renderTeamSheets(); }; });
     el.querySelectorAll('[data-tsview]').forEach(function(b){ b.onclick = function(){ openSheetViewer(b.dataset.tsview); }; });
     el.querySelectorAll('[data-tsedit]').forEach(function(b){ b.onclick = function(){ openTeamSheetModal(teamSheets.find(function(x){ return x.id === b.dataset.tsedit; })); }; });
+    el.querySelectorAll('[data-tsdelete]').forEach(function(b){ b.onclick = function(){ deleteSheetWithUndo(teamSheets.find(function(x){ return x.id === b.dataset.tsdelete; })); }; });
   }
 
   function openSheetViewer(id){
