@@ -121,5 +121,26 @@ service cloud.firestore {
       allow create: if isTeamLead() && request.resource.data.authorId == request.auth.uid;
       allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isTeamLead());
     }
+
+    // Invites: a team lead pre-adds someone by email before they've ever
+    // signed in (name, positions, and whether they should become a team
+    // lead once they arrive). Any signed-in person can read invites (the
+    // client needs to look up its own by email right after first sign-in).
+    // Only a team lead creates/edits/deletes one, EXCEPT the one narrow
+    // self-claim: the person whose email matches an unclaimed invite may
+    // mark it claimed (and only that field set) for themselves once they
+    // sign in - this is what links their new profile to the invite.
+    match /invites/{inviteId} {
+      allow read: if signedIn();
+      allow create, delete: if isTeamLead();
+      allow update: if isTeamLead() || (
+        signedIn() &&
+        resource.data.claimed == false &&
+        resource.data.email == request.auth.token.email.lower() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'claimedUid', 'claimedAt']) &&
+        request.resource.data.claimed == true &&
+        request.resource.data.claimedUid == request.auth.uid
+      );
+    }
   }
 }

@@ -581,6 +581,30 @@
   </div>
 </div>
 
+<!-- Invite a team member -->
+<div class="overlay" id="invite-overlay">
+  <div class="modal">
+    <h3>Invite a team member</h3>
+    <p class="hint">Add them now, before they've ever signed in. Once they sign in with Google using this exact email, it links up to this profile automatically &mdash; name, positions and (if ticked) team lead access all carry over.</p>
+    <div class="field"><label>Name</label><input id="inv-name" placeholder="Full name"></div>
+    <div class="field"><label>Email (must match the Google account they'll sign in with)</label><input id="inv-email" type="email" placeholder="name@example.com"></div>
+    <div class="field"><label>WhatsApp number</label><input id="inv-phone" placeholder="+27 82 123 4567"></div>
+    <div class="field">
+      <label>Positions they can cover</label>
+      <div class="chipset" id="inv-roles" style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px"></div>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px">
+        <input type="checkbox" id="inv-teamlead" style="width:auto"> Make them a team lead once they sign in
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btn-cancel-invite">Cancel</button>
+      <button class="btn gold" id="btn-save-invite">Send invite</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add / edit song library entry modal -->
 <div class="overlay" id="libsong-overlay">
   <div class="modal">
@@ -840,7 +864,25 @@ import { AI_WORKER_URL } from './ai-config.js';
       var ref_ = doc(firestore, 'users', user.uid);
       var snap = await getDoc(ref_);
       if (!snap.exists()){
-        await setDoc(ref_, { name: user.displayName || '', email: user.email || '', isTeamLead: false, createdAt: Date.now() });
+        var profileData = { name: user.displayName || '', email: user.email || '', isTeamLead: false, createdAt: Date.now() };
+        var claimed = null;
+        if (user.email){
+          try {
+            var q = query(collection(firestore, 'invites'), where('email', '==', user.email.toLowerCase()), where('claimed', '==', false));
+            var inviteSnap = await getDocs(q);
+            if (!inviteSnap.empty) claimed = { id: inviteSnap.docs[0].id, data: inviteSnap.docs[0].data() };
+          } catch(e){}
+        }
+        if (claimed){
+          var inv = claimed.data;
+          if (inv.name) profileData.name = inv.name;
+          profileData.phone = inv.phone || '';
+          profileData.roles = inv.roles || [];
+        }
+        await setDoc(ref_, profileData);
+        if (claimed){
+          try { await updateDoc(doc(firestore, 'invites', claimed.id), { claimed: true, claimedUid: user.uid, claimedAt: Date.now() }); } catch(e){}
+        }
       } else if (user.displayName && snap.data().name !== user.displayName){
         await setDoc(ref_, { name: user.displayName }, { merge: true });
       }
@@ -931,6 +973,7 @@ import { AI_WORKER_URL } from './ai-config.js';
   var activeServiceId = null;
   var editingServiceId = null;
   var editingMemberId = null;
+  var invites = [];
   var editingLibSongId = null;
 
   function toast(msg){
@@ -2380,13 +2423,65 @@ import { AI_WORKER_URL } from './ai-config.js';
         (canEdit || m.id===myId ? '<button class="btn ghost small" data-edit-member="'+m.id+'">Edit</button>' : '') +
       '</div>';
     }).join('');
+    var pending = invites.filter(function(i){ return !i.claimed; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    var pendingRows = pending.map(function(inv){
+      return '<div class="sheet-row"><div class="info"><b>' + esc(inv.name||'Unnamed') + ' <span style="color:var(--ink-soft);font-weight:400;font-size:12px">— invited, not signed in yet</span>' + (inv.wantsTeamLead?' <span style="color:var(--gold-ink);font-weight:700;font-size:11px">&middot; will become team lead</span>':'') + '</b>' +
+        '<span>' + esc(inv.email||'') + '</span>' +
+        '<span style="font-size:11px">' + ((inv.roles||[]).length ? esc(uniq((inv.roles||[]).map(posName)).filter(Boolean).join(' · ')) : 'no positions set') + (inv.phone?' &middot; '+esc(inv.phone):'') + '</span></div>' +
+        '<button class="btn danger small" data-cancel-invite="'+inv.id+'">Cancel invite</button>' +
+      '</div>';
+    }).join('');
     el.innerHTML =
-      '<div class="panel-head"><div><h2 class="display">Team</h2><p>Tick every position a person can cover &mdash; auto-fill only ever considers someone for a position they’re ticked for. People appear here automatically once they sign in.</p></div></div>' +
-      (mem.length ? '<div class="sheet-list">'+rows+'</div>' : '<div class="empty-note">Nobody has signed in yet.</div>');
+      '<div class="panel-head"><div><h2 class="display">Team</h2><p>Tick every position a person can cover &mdash; auto-fill only ever considers someone for a position they’re ticked for. People appear here automatically once they sign in, or invite them ahead of time below.</p></div>' +
+      (canEdit ? '<button class="btn gold" id="btn-add-invite">+ Invite team member</button>' : '') + '</div>' +
+      (mem.length ? '<div class="sheet-list">'+rows+'</div>' : '<div class="empty-note">Nobody has signed in yet.</div>') +
+      (pending.length ? '<h3 class="display" style="font-size:18px;margin:22px 0 10px">Pending invites</h3><div class="sheet-list">'+pendingRows+'</div>' : '');
     el.querySelectorAll('[data-edit-member]').forEach(function(b){
       b.onclick = function(){ openMemberModal(teamUsers.find(function(x){return x.id===b.dataset.editMember;})); };
     });
+    var addInviteBtn = document.getElementById('btn-add-invite');
+    if (addInviteBtn) addInviteBtn.onclick = openInviteModal;
+    el.querySelectorAll('[data-cancel-invite]').forEach(function(b){
+      b.onclick = async function(){
+        if (!confirm('Cancel this invite? They can still sign in on their own, but won’t be pre-filled or auto-promoted.')) return;
+        try { await db.collection('invites').doc(b.dataset.cancelInvite).delete(); toast('Invite cancelled.'); }
+        catch(e){ toast('Could not cancel.'); }
+      };
+    });
   }
+  function openInviteModal(){
+    document.getElementById('inv-name').value = '';
+    document.getElementById('inv-email').value = '';
+    document.getElementById('inv-phone').value = '';
+    document.getElementById('inv-teamlead').checked = false;
+    var rolesEl = document.getElementById('inv-roles');
+    rolesEl.innerHTML = (config.positions||[]).map(function(p){ return '<button type="button" class="chip" data-role="'+p.id+'">'+esc(p.name)+'</button>'; }).join('');
+    rolesEl.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ c.classList.toggle('active'); }; });
+    document.getElementById('invite-overlay').classList.add('active');
+  }
+  document.getElementById('btn-cancel-invite').addEventListener('click', function(){ document.getElementById('invite-overlay').classList.remove('active'); });
+  document.getElementById('btn-save-invite').addEventListener('click', async function(){
+    var name = document.getElementById('inv-name').value.trim();
+    var email = document.getElementById('inv-email').value.trim().toLowerCase();
+    if (!name){ toast('Add a name.'); return; }
+    if (!email || email.indexOf('@') < 0){ toast('Add a valid email — it must match the Google account they’ll sign in with.'); return; }
+    if (teamUsers.some(function(u){ return (u.email||'').toLowerCase() === email; })){ toast('Someone with that email has already signed in.'); return; }
+    if (invites.some(function(i){ return !i.claimed && (i.email||'').toLowerCase() === email; })){ toast('There’s already a pending invite for that email.'); return; }
+    var data = {
+      name: name,
+      email: email,
+      phone: document.getElementById('inv-phone').value.trim(),
+      roles: Array.prototype.slice.call(document.querySelectorAll('#inv-roles .chip.active')).map(function(c){ return c.dataset.role; }),
+      wantsTeamLead: document.getElementById('inv-teamlead').checked,
+      claimed: false, claimedUid: null, claimedAt: null, promoted: false,
+      createdBy: myId, createdAt: Date.now()
+    };
+    try {
+      await db.collection('invites').add(data);
+      document.getElementById('invite-overlay').classList.remove('active');
+      toast('Invited. It links up automatically once they sign in with that email.');
+    } catch(err){ toast('Could not save the invite.'); }
+  });
   function openMemberModal(m){
     if (!m) return;
     editingMemberId = m.id;
@@ -3019,6 +3114,22 @@ import { AI_WORKER_URL } from './ai-config.js';
           teamUsers = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           renderTeam(); renderServiceViews();
         }, function(){ toast('Could not load team.'); });
+      } catch(e){}
+      try {
+        db.collection('invites').onSnapshot(function(snap){
+          invites = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+          renderTeam();
+          if (canEdit){
+            invites.forEach(async function(inv){
+              if (inv.claimed && inv.wantsTeamLead && !inv.promoted && inv.claimedUid){
+                try {
+                  await db.collection('users').doc(inv.claimedUid).update({ isTeamLead: true });
+                  await db.collection('invites').doc(inv.id).update({ promoted: true });
+                } catch(e){}
+              }
+            });
+          }
+        }, function(){});
       } catch(e){}
       try {
         db.collection('teamSheets').onSnapshot(function(snap){

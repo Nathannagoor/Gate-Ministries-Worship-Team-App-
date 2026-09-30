@@ -134,13 +134,29 @@ None of this touches your Firebase plan or bill — Cloudflare Workers' free tie
 | `resources`     | any signed-in member (create), team leads (edit/delete) | file uploads go to Cloudinary, or a plain link URL |
 | `feedback`      | each user (create/edit/delete own)   | private: readable only by its author and team leads |
 | `suggestions`   | each user (create own), team leads (update status) | private: readable only by the submitter and team leads |
-| `users`         | each user (own profile), team leads (anyone) | `{ name, email, phone, roles, inactive, isTeamLead }` — this is the team roster; people appear once they sign in |
+| `users`         | each user (own profile), team leads (anyone) | `{ name, email, phone, roles, inactive, isTeamLead }` — this is the team roster; people appear once they sign in, or a team lead can pre-add them (see below) |
+| `invites`       | team leads (create/edit/delete); the invited person (self-claim only) | pre-adds someone by email before they've signed in; links to their profile automatically on first sign-in (see below) |
 
 Editing/deleting a `resources` doc only removes the
 Firestore record — for file resources, the underlying file stays in your
 Cloudinary account (deleting it there requires a signed API call, which
 needs a backend we don't have). Not a problem in practice for a small
 team's free-tier usage.
+
+### Pre-adding team members (invites)
+
+Team leads don't have to wait for someone to sign in first. On the **Team**
+tab, **"+ Invite team member"** adds their name, WhatsApp number, positions
+and (optionally) "will become team lead" ahead of time, tied to their
+email address. The moment that person signs in with Google using that
+exact email, the app automatically links the two: their profile is created
+already filled in with that name/phone/positions, and if "team lead" was
+ticked, they're promoted to team lead the next time any existing team lead
+has the app open (this last step needs a team lead's browser to apply the
+promotion, since only a team lead's own sign-in is allowed to grant team
+lead access — usually within moments if a lead already has it open).
+Pending invites are listed lower down on the Team tab and can be cancelled
+any time before they're claimed.
 
 ## Notes
 
