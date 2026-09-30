@@ -446,6 +446,11 @@
     <div class="field">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px"><input type="checkbox" id="f-track" style="width:auto"> Backing track available</label>
     </div>
+    <div class="field" id="f-sheets-field" style="display:none">
+      <label>Chord sheets (Team Sheets)</label>
+      <div id="f-sheets-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button class="btn ghost small" type="button" id="f-sheets-add" style="margin-top:8px">+ Add chord sheet</button>
+    </div>
     <div class="field" id="f-savelib-field">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px"><input type="checkbox" id="f-savelib" style="width:auto" checked> Also save to the Song Library (so next time it fills in automatically)</label>
     </div>
@@ -644,6 +649,11 @@
     <div class="field">
       <label>Key for each member (blank = default key)</label>
       <div id="lb-leader-keys" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div class="field" id="lb-sheets-field" style="display:none">
+      <label>Chord sheets (Team Sheets)</label>
+      <div id="lb-sheets-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button class="btn ghost small" type="button" id="lb-sheets-add" style="margin-top:8px">+ Add chord sheet</button>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btn-delete-libsong" style="display:none;margin-right:auto">Delete</button>
@@ -1130,10 +1140,7 @@ import { AI_WORKER_URL } from './ai-config.js';
           (linkedSheets.length ? (s.lyricsChords ? '<div style="height:10px"></div>' : '') +
             '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px">Chord sheet' + (linkedSheets.length>1?'s':'') + ' (Team Sheets)</div>' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap">' + linkedSheets.map(function(sh){
-              return '<span style="display:inline-flex;align-items:stretch">' +
-                '<button class="chip" data-cardsheetview="' + sh.id + '">' + esc(sh.key||'—') + ' &middot; ' + esc(sheetKindLabel(sh)) + '</button>' +
-                (canManageSheet(sh) ? '<button class="btn danger small" data-cardsheetdelete="' + sh.id + '" title="Delete this chord sheet" style="padding:2px 8px;margin-left:2px">&times;</button>' : '') +
-              '</span>';
+              return '<button class="chip" data-cardsheetview="' + sh.id + '">' + esc(sh.key||'—') + ' &middot; ' + esc(sheetKindLabel(sh)) + '</button>';
             }).join('') + '</div>'
           : '') +
           (!s.lyricsChords && !linkedSheets.length ? '<p class="tiny-note" style="margin:0">No lyrics, chords or chord sheet added yet.</p>' : '') +
@@ -1166,7 +1173,6 @@ import { AI_WORKER_URL } from './ai-config.js';
       var lyricsToggleBtn = card.querySelector('[data-lyricstoggle]');
       if (lyricsToggleBtn) lyricsToggleBtn.onclick = function(){ expandedSongs[s.id] = !expandedSongs[s.id]; renderSongs(); };
       card.querySelectorAll('[data-cardsheetview]').forEach(function(b){ b.onclick = function(){ openSheetViewer(b.dataset.cardsheetview); }; });
-      card.querySelectorAll('[data-cardsheetdelete]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); deleteSheetWithUndo(teamSheets.find(function(x){ return x.id === b.dataset.cardsheetdelete; })); }; });
       grid.appendChild(card);
     });
     renderLeaderLegend();
@@ -1271,11 +1277,18 @@ import { AI_WORKER_URL } from './ai-config.js';
     document.getElementById('f-savelib-field').style.display = song ? 'none' : '';
     document.getElementById('f-savelib').checked = true;
     document.getElementById('f-library').innerHTML = '<option value="">— or type a new song below —</option>' + libs.map(function(l){ return '<option value="'+l.id+'">'+esc(l.title)+(l.key?' ('+esc(l.key)+')':'')+'</option>'; }).join('');
+    renderSheetsField(song && song.title, 'f-sheets-list', 'f-sheets-field');
     songOverlay.classList.add('active');
   }
+  document.getElementById('f-sheets-add').addEventListener('click', function(){
+    var title = document.getElementById('f-title').value.trim();
+    if (!title){ toast('Enter a song title first.'); return; }
+    openTeamSheetModal(null, { title: title, category: document.getElementById('f-category').value || 'Praise', key: document.getElementById('f-key').value || '' });
+  });
   document.getElementById('f-library').addEventListener('change', function(){ applyLibrarySelection(false); });
   document.getElementById('f-leader').addEventListener('input', function(){ applyLibrarySelection(true); });
   document.getElementById('f-title').addEventListener('blur', function(){
+    renderSheetsField(document.getElementById('f-title').value.trim(), 'f-sheets-list', 'f-sheets-field');
     if (editingSongId) return; // only auto-match when adding a new song, not editing one already on the arrangement
     var libSelect = document.getElementById('f-library');
     var typed = normTitle(document.getElementById('f-title').value);
@@ -2200,12 +2213,14 @@ import { AI_WORKER_URL } from './ai-config.js';
         text(String(i+1), P + 22, y - 1, '700 24px Inter, sans-serif', '#ffffff', 'center');
         text(sg.title || 'Untitled', P + 62, y, '700 34px Inter, sans-serif', '#1a1a1a');
         y += 38;
-        var meta = ['KEY ' + (sg.key || '—'), sg.tempo || '', sg.timeSig || '', 'Lead: ' + (sg.leaderName || '—')].filter(Boolean).join('   ·   ');
+        var meta = [sg.category || '', 'KEY ' + (sg.key || '—'), sg.tempo || '', sg.timeSig || '', 'Lead: ' + (sg.leaderName || '—')].filter(Boolean).join('   ·   ');
         if (draw && lc){ ctx.fillStyle = lc; ctx.beginPath(); ctx.arc(P + 70, y - 8, 7, 0, Math.PI*2); ctx.fill(); }
         text(meta, P + (lc ? 86 : 62), y, '600 24px Inter, sans-serif', lc || '#5c5f66');
         y += 34;
+        text(sg.trackAvailable ? '♪ Track available' : '⚠ No track available', P + 62, y, '700 21px Inter, sans-serif', sg.trackAvailable ? '#1a8a4a' : '#b1493f');
+        y += 30;
         if (sg.bvs){ font('400 22px Inter, sans-serif'); wrap(ctx, 'BVs: ' + sg.bvs, W - 2*P - 62).forEach(function(l){ text(l, P + 62, y, '400 22px Inter, sans-serif', '#5c5f66'); y += 30; }); }
-        [['Keys', sg.keys], ['Pads', sg.pads], ['Acoustic', sg.acoustic1], ['Electric 1', sg.electric1], ['Electric 2', sg.electric2]].forEach(function(row){
+        [['Keys', sg.keys], ['Pads', sg.pads], ['Acoustic 1', sg.acoustic1], ['Acoustic 2', sg.acoustic2], ['Electric 1', sg.electric1], ['Electric 2', sg.electric2], ['Bass', sg.bass], ['Transitions', sg.transitions]].forEach(function(row){
           if (!row[1]) return;
           text(row[0], P + 62, y, '700 21px Inter, sans-serif', '#1a1a1a');
           font('400 21px Inter, sans-serif');
@@ -2320,6 +2335,27 @@ import { AI_WORKER_URL } from './ai-config.js';
     if (sh.body) return 'Text';
     if (sh.fileUrl) return 'Image';
     return 'Empty';
+  }
+  // Renders the "chord sheets" management list inside an Edit-song modal
+  // (Arrangements' song modal and the Song Library's song modal). Each row
+  // has a preview control on the left and a separate bin/delete button on
+  // the right, deliberately spaced apart rather than crammed together.
+  function renderSheetsField(title, listId, fieldId){
+    var field = document.getElementById(fieldId);
+    var list = document.getElementById(listId);
+    if (!field || !list) return;
+    var linked = title ? sheetsForTitle(title) : [];
+    field.style.display = title ? '' : 'none';
+    list.innerHTML = linked.length
+      ? linked.map(function(sh){
+          return '<div class="sheet-row" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:6px 8px 6px 0">' +
+            '<button class="chip" data-sheetview="' + sh.id + '" style="flex:1;text-align:left">' + esc(sh.key||'—') + ' &middot; ' + esc(sheetKindLabel(sh)) + '</button>' +
+            (canManageSheet(sh) ? '<button class="btn danger small" data-sheetdelete="' + sh.id + '" title="Delete this chord sheet">&#128465; Delete</button>' : '') +
+          '</div>';
+        }).join('')
+      : '<p class="tiny-note" style="margin:0">No chord sheet linked yet.</p>';
+    list.querySelectorAll('[data-sheetview]').forEach(function(b){ b.onclick = function(e){ e.preventDefault(); openSheetViewer(b.dataset.sheetview); }; });
+    list.querySelectorAll('[data-sheetdelete]').forEach(function(b){ b.onclick = function(e){ e.preventDefault(); deleteSheetWithUndo(teamSheets.find(function(x){ return x.id === b.dataset.sheetdelete; })); }; });
   }
   function renderTeamSheets(){
     var el = document.getElementById('teamsheets-body'); if (!el) return;
@@ -2459,7 +2495,21 @@ import { AI_WORKER_URL } from './ai-config.js';
     var setSongs = arrSongs(s.id);
     if (setSongs.length){
       L.push(''); L.push('SET LIST');
-      setSongs.forEach(function(sg, i){ L.push((i+1)+'. '+sg.title+(sg.key?' \u2014 '+sg.key:'')+(sg.tempo?' \u00b7 '+sg.tempo:'')+(sg.leaderName && sg.leaderName.toLowerCase()!=='all' ? ' ('+sg.leaderName+')' : '')); });
+      setSongs.forEach(function(sg, i){
+        L.push((i+1)+'. '+sg.title+(sg.key?' \u2014 '+sg.key:'')+(sg.tempo?' \u00b7 '+sg.tempo:'')+(sg.leaderName && sg.leaderName.toLowerCase()!=='all' ? ' ('+sg.leaderName+')' : ''));
+        if (sg.category) L.push('   Category: '+sg.category);
+        if (sg.timeSig) L.push('   Time: '+sg.timeSig);
+        L.push('   Track: '+(sg.trackAvailable ? 'Available' : 'Not available'));
+        if (sg.bvs) L.push('   BVs: '+sg.bvs);
+        if (sg.keys) L.push('   Keys/Piano: '+sg.keys);
+        if (sg.pads) L.push('   Pads: '+sg.pads);
+        if (sg.acoustic1) L.push('   Acoustic 1: '+sg.acoustic1);
+        if (sg.acoustic2) L.push('   Acoustic 2: '+sg.acoustic2);
+        if (sg.electric1) L.push('   Electric 1: '+sg.electric1);
+        if (sg.electric2) L.push('   Electric 2: '+sg.electric2);
+        if (sg.bass) L.push('   Bass: '+sg.bass);
+        if (sg.transitions) L.push('   Transitions: '+sg.transitions);
+      });
     }
     if (config.rehearsal){ L.push(''); L.push('Rehearsal: '+config.rehearsal); }
     if (s.notes){ L.push(''); L.push(s.notes); }
@@ -2673,10 +2723,7 @@ import { AI_WORKER_URL } from './ai-config.js';
             '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">Chord sheets in Team Sheets</div>' +
             (linkedSheets.length
               ? '<div style="display:flex;gap:6px;flex-wrap:wrap">' + linkedSheets.map(function(sh){
-                  return '<span style="display:inline-flex;align-items:stretch">' +
-                    '<button class="chip" data-libsheetview="' + sh.id + '">' + esc(sh.key||'—') + '</button>' +
-                    (canManageSheet(sh) ? '<button class="btn danger small" data-libsheetdelete="' + sh.id + '" title="Delete this chord sheet" style="padding:2px 8px;margin-left:2px">&times;</button>' : '') +
-                  '</span>';
+                  return '<button class="chip" data-libsheetview="' + sh.id + '">' + esc(sh.key||'—') + '</button>';
                 }).join('') + '</div>'
               : '<p class="tiny-note" style="margin:0 0 6px">No chord sheet linked yet.</p>') +
             '<button class="btn ghost small" data-libaddsheet="' + sg.id + '" style="margin-top:8px">+ Add chord sheet</button>' +
@@ -2708,7 +2755,6 @@ import { AI_WORKER_URL } from './ai-config.js';
     });
     el.querySelectorAll('[data-libedit]').forEach(function(b){ b.onclick = function(){ openLibSongModal(songLibrary.find(function(x){return x.id===b.dataset.libedit;})); }; });
     el.querySelectorAll('[data-libsheetview]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); openSheetViewer(b.dataset.libsheetview); }; });
-    el.querySelectorAll('[data-libsheetdelete]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); deleteSheetWithUndo(teamSheets.find(function(x){ return x.id === b.dataset.libsheetdelete; })); }; });
     el.querySelectorAll('[data-libaddsheet]').forEach(function(b){ b.onclick = function(e){
       e.stopPropagation();
       var sg = songLibrary.find(function(x){ return x.id === b.dataset.libaddsheet; });
@@ -2747,8 +2793,17 @@ import { AI_WORKER_URL } from './ai-config.js';
     } else {
       wrap.innerHTML = '<p class="tiny-note" style="margin:0">Nobody has signed in yet, so there are no members to set keys for.</p>';
     }
+    renderSheetsField(sg.title, 'lb-sheets-list', 'lb-sheets-field');
     document.getElementById('libsong-overlay').classList.add('active');
   }
+  document.getElementById('lb-title').addEventListener('blur', function(){
+    renderSheetsField(document.getElementById('lb-title').value.trim(), 'lb-sheets-list', 'lb-sheets-field');
+  });
+  document.getElementById('lb-sheets-add').addEventListener('click', function(){
+    var title = document.getElementById('lb-title').value.trim();
+    if (!title){ toast('Enter a song title first.'); return; }
+    openTeamSheetModal(null, { title: title, category: document.getElementById('lb-category').value || 'Praise', key: document.getElementById('lb-key').value || '' });
+  });
   document.getElementById('btn-cancel-libsong').addEventListener('click', function(){ document.getElementById('libsong-overlay').classList.remove('active'); });
   document.getElementById('btn-save-libsong').addEventListener('click', async function(){
     var title = document.getElementById('lb-title').value.trim();
@@ -3255,6 +3310,8 @@ import { AI_WORKER_URL } from './ai-config.js';
         db.collection('teamSheets').onSnapshot(function(snap){
           teamSheets = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
           renderTeamSheets();
+          if (songOverlay.classList.contains('active')) renderSheetsField(document.getElementById('f-title').value.trim(), 'f-sheets-list', 'f-sheets-field');
+          if (document.getElementById('libsong-overlay').classList.contains('active')) renderSheetsField(document.getElementById('lb-title').value.trim(), 'lb-sheets-list', 'lb-sheets-field');
         }, function(){ toast('Could not load team sheets.'); });
       } catch(e){}
       try {
