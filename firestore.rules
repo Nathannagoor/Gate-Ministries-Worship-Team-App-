@@ -68,13 +68,14 @@ service cloud.firestore {
 
     // Availability: one doc per person per service (id serviceId__userId).
     // Members can only read and write their own answers; team leads can
-    // read everyone's and write anyone's.
+    // read everyone's for planning, but can only view it, never change or
+    // clear someone else's answer - only that person can set their own.
     match /availability/{docId} {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || isTeamLead());
       allow create, update: if signedIn()
         && docId == request.resource.data.serviceId + '__' + request.resource.data.userId
-        && (request.resource.data.userId == request.auth.uid || isTeamLead());
-      allow delete: if signedIn() && (resource.data.userId == request.auth.uid || isTeamLead());
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Team sheets (chord/lead sheets by song and key): everyone reads, any

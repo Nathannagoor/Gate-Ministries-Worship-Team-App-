@@ -1967,7 +1967,7 @@ import { AI_WORKER_URL } from './ai-config.js';
   function renderAvailabilityTab(){
     var el = document.getElementById('availability-body'); if (!el) return;
     var head = '<div class="panel-head"><div><h2 class="display">Availability</h2><p>' + (canEdit
-      ? 'Everyone’s answers, visible to team leads only. Tap a cell to cycle: no reply &rarr; can serve &rarr; can’t serve.'
+      ? 'Everyone’s answers, visible to team leads only. You can only set your own row &mdash; tap one of your cells to cycle: no reply &rarr; can serve &rarr; can’t serve.'
       : 'Tap a service to cycle: no reply &rarr; can serve &rarr; can’t serve. Only you and the team leads can see your answers.') + '</p></div></div>';
     var upcoming = svcList().filter(function(s){ return s.date >= svcISO(new Date()); }).slice(0,10);
     var mem = teamUsers.filter(function(m){ return !m.inactive; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
@@ -1993,7 +1993,7 @@ import { AI_WORKER_URL } from './ai-config.js';
       var cells = upcoming.map(function(s){
         var v = availOf(s.id, m.id);
         var lab = v==='yes' ? '&#10003;' : v==='no' ? '&#10007;' : '&middot;';
-        var editable = canEdit || m.id === myId;
+        var editable = m.id === myId;
         return '<td class="c"><button class="av ' + v + '" ' + (editable?'':'disabled') + ' data-svc="' + s.id + '" data-mem="' + m.id + '" title="' + esc(m.name) + ' — ' + esc(fmtSvc(s.date)) + '">' + lab + '</button></td>';
       }).join('');
       return '<tr><th>' + esc(m.name) + (m.id===myId?' (you)':'') + '<div style="font-weight:400;color:var(--ink-soft);font-size:11px">' + esc(uniq((m.roles||[]).map(posName)).filter(Boolean).join(', ')) + '</div></th>' + cells + '</tr>';
