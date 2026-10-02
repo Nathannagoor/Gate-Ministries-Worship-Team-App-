@@ -180,9 +180,13 @@ any time before they're claimed.
 - **Click track**: any song with a usable tempo (e.g. "72 BPM") shows a
   "▶ Click track" button on its arrangement card, for singers and
   musicians to practice against. It's synthesized in the browser with the
-  Web Audio API (no audio files, no extra setup) and reads the time
-  signature for an accented downbeat. Only one plays at a time; starting
+  Web Audio API (no audio files, no extra setup). The BPM and time
+  signature are linked, not independent: a plain meter (4/4, 3/4, 2/4...)
+  clicks once per beat with an accent on beat 1, while a compound meter
+  (6/8, 9/8, 12/8) is read as the stated BPM being the dotted-quarter
+  pulse, so it clicks each eighth note at BPM/3 with accents on both the
+  bar and each dotted-quarter group. Only one plays at a time; starting
   another stops the previous one, and switching away from the
-  Arrangements tab stops it too. If a team lead edits that song's tempo
-  while its click is playing, the click updates to the new BPM live
-  instead of needing a restart.
+  Arrangements tab stops it too. If a team lead edits that song's tempo or
+  time signature while its click is playing, the click updates live to
+  match instead of needing a restart.

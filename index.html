@@ -1087,9 +1087,15 @@ import { AI_WORKER_URL } from './ai-config.js';
   // Synthesized in the browser with the Web Audio API — no audio files
   // needed. One click track plays at a time; starting another stops the
   // previous one. Uses a lookahead scheduler so the beat stays accurate
-  // even if the tab is busy.
+  // even if the tab is busy. The click is derived from BOTH the song's BPM
+  // AND its time signature together, not BPM alone: a plain meter (4/4,
+  // 3/4, 2/4...) clicks once per beat and accents beat 1 of the bar; a
+  // compound meter (6/8, 9/8, 12/8) clicks each eighth note at BPM/3 of the
+  // stated tempo (the stated BPM is the dotted-quarter pulse) and accents
+  // both the bar and each dotted-quarter group.
   var clickAudioCtx = null, clickTimerId = null, clickPlayingSongId = null;
-  var clickBpm = 100, clickBeatsPerBar = 4, clickBeatCount = 0, clickNextNoteTime = 0;
+  var clickBpm = 100, clickBeatsPerBar = 4, clickAccentEvery = 1, clickSecondsPerClick = 0.6;
+  var clickBeatCount = 0, clickNextNoteTime = 0;
   var CLICK_LOOKAHEAD_MS = 25, CLICK_SCHEDULE_AHEAD_S = 0.12;
   function parseBpm(tempo){
     if (!tempo) return null;
@@ -1098,17 +1104,31 @@ import { AI_WORKER_URL } from './ai-config.js';
     var n = parseFloat(m[1]);
     return (n >= 20 && n <= 300) ? n : null;
   }
-  function parseBeatsPerBar(timeSig){
-    var m = String(timeSig||'').match(/^\s*(\d+)\s*\/\s*\d+/);
-    if (m){ var n = parseInt(m[1],10); if (n>0 && n<=16) return n; }
-    return 4;
+  // Ties the BPM to the time signature: returns how many clicks make up a
+  // bar, how often (within the bar) to put a secondary accent, and how
+  // many seconds separate each click given the stated tempo.
+  function clickTimingFor(bpm, timeSig){
+    var m = String(timeSig||'').match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
+    var num = m ? parseInt(m[1],10) : 4, den = m ? parseInt(m[2],10) : 4;
+    if (!(num > 0 && num <= 24)) num = 4;
+    var compound = (den === 8 && num > 3 && num % 3 === 0);
+    if (compound){
+      // stated BPM is the dotted-quarter pulse; click every eighth note.
+      return { beatsPerBar: num, accentEvery: 3, secondsPerClick: (60 / bpm) / 3 };
+    }
+    return { beatsPerBar: num, accentEvery: 1, secondsPerClick: 60 / bpm };
   }
   function scheduleClickBeat(beatNumber, time){
     var ctx = clickAudioCtx;
+    var posInBar = beatNumber % clickBeatsPerBar;
+    var isDownbeat = posInBar === 0;
+    var isGroupAccent = !isDownbeat && (posInBar % clickAccentEvery === 0);
+    var freq = isDownbeat ? 1600 : (isGroupAccent ? 1300 : 1000);
+    var peak = isDownbeat ? 1 : (isGroupAccent ? 0.7 : 0.45);
     var osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.frequency.value = (beatNumber % clickBeatsPerBar === 0) ? 1600 : 1000;
+    osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(1, time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(peak, time + 0.002);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(time); osc.stop(time + 0.06);
@@ -1116,7 +1136,7 @@ import { AI_WORKER_URL } from './ai-config.js';
   function clickScheduler(){
     while (clickNextNoteTime < clickAudioCtx.currentTime + CLICK_SCHEDULE_AHEAD_S){
       scheduleClickBeat(clickBeatCount, clickNextNoteTime);
-      clickNextNoteTime += 60.0 / clickBpm;
+      clickNextNoteTime += clickSecondsPerClick;
       clickBeatCount++;
     }
     clickTimerId = setTimeout(clickScheduler, CLICK_LOOKAHEAD_MS);
@@ -1125,6 +1145,10 @@ import { AI_WORKER_URL } from './ai-config.js';
     if (clickTimerId){ clearTimeout(clickTimerId); clickTimerId = null; }
     clickPlayingSongId = null;
   }
+  function applyClickTiming(bpm, timeSig){
+    var t = clickTimingFor(bpm, timeSig);
+    clickBpm = bpm; clickBeatsPerBar = t.beatsPerBar; clickAccentEvery = t.accentEvery; clickSecondsPerClick = t.secondsPerClick;
+  }
   function toggleClickTrack(s){
     var bpm = parseBpm(s.tempo);
     if (!bpm){ toast('No usable tempo (BPM) set for this song.'); return; }
@@ -1132,8 +1156,7 @@ import { AI_WORKER_URL } from './ai-config.js';
     stopClickTrack();
     if (!clickAudioCtx) clickAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (clickAudioCtx.state === 'suspended') clickAudioCtx.resume();
-    clickBpm = bpm;
-    clickBeatsPerBar = parseBeatsPerBar(s.timeSig);
+    applyClickTiming(bpm, s.timeSig);
     clickBeatCount = 0;
     clickNextNoteTime = clickAudioCtx.currentTime + 0.05;
     clickPlayingSongId = s.id;
@@ -1154,9 +1177,9 @@ import { AI_WORKER_URL } from './ai-config.js';
         var liveBpm = parseBpm(playingSong.tempo);
         if (!liveBpm){ stopClickTrack(); toast('Click track stopped — this song no longer has a usable tempo.'); }
         else {
-          var liveBeats = parseBeatsPerBar(playingSong.timeSig);
-          if (liveBpm !== clickBpm || liveBeats !== clickBeatsPerBar){
-            clickBpm = liveBpm; clickBeatsPerBar = liveBeats;
+          var liveTiming = clickTimingFor(liveBpm, playingSong.timeSig);
+          if (liveBpm !== clickBpm || liveTiming.beatsPerBar !== clickBeatsPerBar || liveTiming.accentEvery !== clickAccentEvery){
+            applyClickTiming(liveBpm, playingSong.timeSig);
           }
         }
       }
