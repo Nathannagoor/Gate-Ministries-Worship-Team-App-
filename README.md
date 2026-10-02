@@ -177,3 +177,12 @@ any time before they're claimed.
   be edited before saving. An optional "✨ Clean up with Claude" button can
   also tidy up the transcript using the real Anthropic API — see "Optional:
   AI clean-up for arrangement ideas" below for the (small) cost and setup.
+- **Click track**: any song with a usable tempo (e.g. "72 BPM") shows a
+  "▶ Click track" button on its arrangement card, for singers and
+  musicians to practice against. It's synthesized in the browser with the
+  Web Audio API (no audio files, no extra setup) and reads the time
+  signature for an accented downbeat. Only one plays at a time; starting
+  another stops the previous one, and switching away from the
+  Arrangements tab stops it too. If a team lead edits that song's tempo
+  while its click is playing, the click updates to the new BPM live
+  instead of needing a restart.

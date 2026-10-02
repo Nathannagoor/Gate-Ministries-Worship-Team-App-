@@ -1026,6 +1026,7 @@ import { AI_WORKER_URL } from './ai-config.js';
   // ---------- tabs ----------
   document.querySelectorAll('.tab-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
+      if (btn.dataset.view !== 'arrangements' && clickPlayingSongId){ stopClickTrack(); }
       document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
       document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
       btn.classList.add('active');
@@ -1082,12 +1083,84 @@ import { AI_WORKER_URL } from './ai-config.js';
     } catch(err){ toast('Could not delete that song.'); }
   }
 
+  // ---------- click track (metronome) ----------
+  // Synthesized in the browser with the Web Audio API — no audio files
+  // needed. One click track plays at a time; starting another stops the
+  // previous one. Uses a lookahead scheduler so the beat stays accurate
+  // even if the tab is busy.
+  var clickAudioCtx = null, clickTimerId = null, clickPlayingSongId = null;
+  var clickBpm = 100, clickBeatsPerBar = 4, clickBeatCount = 0, clickNextNoteTime = 0;
+  var CLICK_LOOKAHEAD_MS = 25, CLICK_SCHEDULE_AHEAD_S = 0.12;
+  function parseBpm(tempo){
+    if (!tempo) return null;
+    var m = String(tempo).match(/(\d+(\.\d+)?)/);
+    if (!m) return null;
+    var n = parseFloat(m[1]);
+    return (n >= 20 && n <= 300) ? n : null;
+  }
+  function parseBeatsPerBar(timeSig){
+    var m = String(timeSig||'').match(/^\s*(\d+)\s*\/\s*\d+/);
+    if (m){ var n = parseInt(m[1],10); if (n>0 && n<=16) return n; }
+    return 4;
+  }
+  function scheduleClickBeat(beatNumber, time){
+    var ctx = clickAudioCtx;
+    var osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.frequency.value = (beatNumber % clickBeatsPerBar === 0) ? 1600 : 1000;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(1, time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(time); osc.stop(time + 0.06);
+  }
+  function clickScheduler(){
+    while (clickNextNoteTime < clickAudioCtx.currentTime + CLICK_SCHEDULE_AHEAD_S){
+      scheduleClickBeat(clickBeatCount, clickNextNoteTime);
+      clickNextNoteTime += 60.0 / clickBpm;
+      clickBeatCount++;
+    }
+    clickTimerId = setTimeout(clickScheduler, CLICK_LOOKAHEAD_MS);
+  }
+  function stopClickTrack(){
+    if (clickTimerId){ clearTimeout(clickTimerId); clickTimerId = null; }
+    clickPlayingSongId = null;
+  }
+  function toggleClickTrack(s){
+    var bpm = parseBpm(s.tempo);
+    if (!bpm){ toast('No usable tempo (BPM) set for this song.'); return; }
+    if (clickPlayingSongId === s.id){ stopClickTrack(); renderSongs(); return; }
+    stopClickTrack();
+    if (!clickAudioCtx) clickAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (clickAudioCtx.state === 'suspended') clickAudioCtx.resume();
+    clickBpm = bpm;
+    clickBeatsPerBar = parseBeatsPerBar(s.timeSig);
+    clickBeatCount = 0;
+    clickNextNoteTime = clickAudioCtx.currentTime + 0.05;
+    clickPlayingSongId = s.id;
+    clickScheduler();
+    renderSongs();
+  }
+
   function renderSongs(){
     renderServiceSwitcher('service-switcher-arrangements');
     var grid = document.getElementById('song-grid');
     grid.innerHTML = '';
     var svc = curService();
     var full = svc ? arrSongs(svc.id) : [];
+    if (clickPlayingSongId){
+      var playingSong = songs.find(function(x){ return x.id === clickPlayingSongId; });
+      if (!playingSong){ stopClickTrack(); }
+      else {
+        var liveBpm = parseBpm(playingSong.tempo);
+        if (!liveBpm){ stopClickTrack(); toast('Click track stopped — this song no longer has a usable tempo.'); }
+        else {
+          var liveBeats = parseBeatsPerBar(playingSong.timeSig);
+          if (liveBpm !== clickBpm || liveBeats !== clickBeatsPerBar){
+            clickBpm = liveBpm; clickBeatsPerBar = liveBeats;
+          }
+        }
+      }
+    }
     var list = full.slice();
     if (songFilter !== 'all') list = list.filter(function(s){ return s.category === songFilter; });
     if (globalSearch) list = list.filter(function(s){ return (s.title||'').toLowerCase().indexOf(globalSearch) >= 0; });
@@ -1112,6 +1185,8 @@ import { AI_WORKER_URL } from './ai-config.js';
       var lyricsOpen = !!expandedSongs[s.id];
       var linkedSheets = sheetsForTitle(s.title);
       var hasLyricsOrSheet = !!(s.lyricsChords || linkedSheets.length);
+      var bpmVal = parseBpm(s.tempo);
+      var clickPlaying = clickPlayingSongId === s.id;
       card.dataset.songid = s.id;
       card.innerHTML =
         '<div class="song-card-head">' +
@@ -1134,6 +1209,7 @@ import { AI_WORKER_URL } from './ai-config.js';
         '</div>' +
         '<div class="song-card-actions">' +
           (hasLyricsOrSheet ? '<button class="btn ghost small" data-lyricstoggle="' + s.id + '">' + (lyricsOpen ? 'Hide lyrics &amp; chords &#9652;' : 'Lyrics &amp; chords &#9662;') + '</button>' : '') +
+          (bpmVal ? '<button class="btn ' + (clickPlaying ? 'gold' : 'ghost') + ' small" data-clicktoggle="' + s.id + '" title="Click track for singers &amp; musicians to practice with">' + (clickPlaying ? '&#9632; Stop click' : '&#9654; Click track') + ' (' + bpmVal + ' BPM)</button>' : '') +
         '</div>' +
         (lyricsOpen ? '<div class="lyrics-panel">' +
           (s.lyricsChords ? '<pre>' + esc(s.lyricsChords) + '</pre>' : '') +
@@ -1172,6 +1248,8 @@ import { AI_WORKER_URL } from './ai-config.js';
       }
       var lyricsToggleBtn = card.querySelector('[data-lyricstoggle]');
       if (lyricsToggleBtn) lyricsToggleBtn.onclick = function(){ expandedSongs[s.id] = !expandedSongs[s.id]; renderSongs(); };
+      var clickBtn = card.querySelector('[data-clicktoggle]');
+      if (clickBtn) clickBtn.onclick = function(){ toggleClickTrack(s); };
       card.querySelectorAll('[data-cardsheetview]').forEach(function(b){ b.onclick = function(){ openSheetViewer(b.dataset.cardsheetview); }; });
       grid.appendChild(card);
     });
